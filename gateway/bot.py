@@ -26,7 +26,7 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_state = {"model": "llama3-8b-8192", "auto": True}
+_state = {"model": "llama-3.1-8b-instant", "auto": True}
 
 
 async def chat_reply(prompt):
