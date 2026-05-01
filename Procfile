@@ -1,1 +1,1 @@
-worker: python gateway/bot.py
+worker: python main.py
