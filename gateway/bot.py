@@ -26,7 +26,7 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_state = {"model":os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")", "auto": True}
+_state = {"model":os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant)", "auto": True}
 
 
 async def chat_reply(prompt):
