@@ -1,7 +1,3 @@
-discord.py~=2.3
-groq
-slack-bolt
-slack-sdk
 openclaw
 groq
 python-dotenv
