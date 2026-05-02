@@ -1,1 +1,1 @@
-worker: sh -c "python gateway/bot.py & python gateway/slack_bot.py & wait"
+worker: sh -c "python gateway/bot.py & python gateway/slack_bot.py & python bot_factory.py & wait"
