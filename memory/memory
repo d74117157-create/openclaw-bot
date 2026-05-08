@@ -1,0 +1,51 @@
+import sqlite3, time
+
+DB_PATH = "eonix.db"
+
+def init_db():
+    con = sqlite3.connect(DB_PATH)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            task    TEXT    NOT NULL,
+            agent   TEXT    DEFAULT 'orchestrator',
+            result  TEXT,
+            status  TEXT    DEFAULT 'pending',
+            created REAL,
+            updated REAL
+        )
+    """)
+    con.commit()
+    con.close()
+
+def save_task(task, agent="orchestrator"):
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    now = time.time()
+    cur.execute(
+        "INSERT INTO tasks (task,agent,status,created,updated) VALUES (?,?,?,?,?)",
+        (task, agent, "pending", now, now)
+    )
+    tid = cur.lastrowid
+    con.commit(); con.close()
+    return tid
+
+def update_task(tid, result, status="done"):
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        "UPDATE tasks SET result=?,status=?,updated=? WHERE id=?",
+        (result, status, time.time(), tid)
+    )
+    con.commit(); con.close()
+
+def get_pending_tasks():
+    con = sqlite3.connect(DB_PATH)
+    rows = con.execute("SELECT id,task,agent FROM tasks WHERE status='pending'").fetchall()
+    con.close()
+    return rows
+
+def get_stats():
+    con = sqlite3.connect(DB_PATH)
+    rows = con.execute("SELECT status,COUNT(*) FROM tasks GROUP BY status").fetchall()
+    con.close()
+    return dict(rows)
