@@ -31,7 +31,7 @@ def process_task(task_text):
         messages = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT + 
+                "content": SYSTEM_PROMPT +
                 " The user has given you a task. Complete it thoroughly."
             },
             {"role": "user", "content": task_text},
