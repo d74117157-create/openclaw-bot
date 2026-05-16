@@ -1,0 +1,39 @@
+{
+  "name": "Devin Swarm",
+  "description": "GitHub-centric OpenClaw swarm for multi-agent dev + content work.",
+  "skills": ["github"],
+  "tools": ["git", "github", "sessions_send", "sessions_spawn"],
+  "runtime": {
+    "type": "acp",
+    "git": {
+      "worktreePerAgent": true,
+      "autoBranch": true,
+      "prTemplate": ".github/PULL_REQUEST_TEMPLATE.md"
+    }
+  },
+  "channels": {
+    "github": {
+      "webhookSecret": "CHANGE_ME_WEBHOOK_SECRET",
+      "issueTriggers": true
+    },
+    "discord": {
+      "guildId": "CHANGE_ME_GUILD_ID",
+      "requireMention": true
+    }
+  },
+  "defaultOrchestrator": "orchestrator",
+  "agents": {
+    "orchestrator": {
+      "path": ".agents/orchestrator"
+    },
+    "coder": {
+      "path": ".agents/coder"
+    },
+    "reviewer": {
+      "path": ".agents/reviewer"
+    },
+    "qa": {
+      "path": ".agents/qa"
+    }
+  }
+}
