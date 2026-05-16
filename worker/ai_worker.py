@@ -1,16 +1,44 @@
 import os
-from openai import OpenAI
+from groq import Groq
+
+SYSTEM_PROMPT = "You are a helpful AI assistant."
 
 client = None
 
 def _get_client():
     global client
     if client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
             return None
-        client = OpenAI(api_key=api_key)
+        client = Groq(api_key=api_key)
     return client
+
+
+def process_task(task_text):
+    c = _get_client()
+    if c is None:
+        return "Groq API key is not configured."
+
+    try:
+        messages = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT + " The user has given you a task. Complete it thoroughly."
+            },
+            {"role": "user", "content": task_text},
+        ]
+
+        response = c.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=messages,
+            max_tokens=800,
+        )
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"Error: {e}"
 
 SYSTEM_PROMPT = (
     "You are OpenClaw, a powerful AI assistant living inside Discord. "
@@ -23,13 +51,13 @@ SYSTEM_PROMPT = (
 def chat_reply(history):
     c = _get_client()
     if c is None:
-        return "OpenAI API key is not configured."
+        return "groq API key is configured."
     try:
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in history:
             messages.append({"role": msg["role"], "content": msg["content"]})
-        response = c.chat.completions.create(
-            model="gpt-4o-mini",
+        response = client.chat.completions.create(
+            model="llama3-3-70b-8192",
             messages=messages,
             max_tokens=800,
         )
@@ -47,7 +75,7 @@ def process_task(task_text):
             {"role": "user", "content": task_text},
         ]
         response = c.chat.completions.create(
-            model="gpt-4o-mini",
+            model="llama3-70b-8192",
             messages=messages,
             max_tokens=800,
         )
