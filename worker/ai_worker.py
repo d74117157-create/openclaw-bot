@@ -1,4 +1,5 @@
 import os
+import json
 from groq import Groq
 
 # System prompt for your assistant
@@ -47,16 +48,18 @@ def process_task(task_text):
 
     except Exception as e:
         return f"Error: {e}"
+
+
 # -----------------------------
 # MULTI‑AGENT ORCHESTRATION
 # -----------------------------
 
-# Define your agent personas
 AGENT_PERSONAS = {
     "planner": (
         "You are Planner, a strategic reasoning agent. "
-        "Your job is to break the user's request into clear steps, "
-        "identify what needs to be done, and delegate tasks to the Worker agent."
+        "You MUST respond with ONLY valid JSON. "
+        "Format exactly as: {\"plan\": [\"step 1\", \"step 2\", \"step 3\"]}. "
+        "No extra text, no markdown, no explanations, no backticks."
     ),
     "worker": (
         "You are Worker, a hands‑on execution agent. "
@@ -64,6 +67,7 @@ AGENT_PERSONAS = {
         "producing final outputs, code, writing, or analysis."
     ),
 }
+
 
 def run_agent(role, content):
     """Runs a single agent with a specific persona."""
@@ -88,13 +92,26 @@ def run_agent(role, content):
 def orchestrate_task(task_text):
     """Planner → Worker → Final Output"""
     try:
-        # Step 1: Planner breaks down the task
-        plan = run_agent("planner", f"Create a plan for this task: {task_text}")
+        # Step 1: Planner creates a JSON plan
+        planner_output = run_agent(
+            "planner",
+            f"Create a plan for this task: {task_text}"
+        )
 
-        # Step 2: Worker executes the plan
-        result = run_agent("worker", f"Execute this plan:\n\n{plan}")
+        # Step 2: Parse JSON safely
+        try:
+            data = json.loads(planner_output)
+            steps = data.get("plan", [])
+        except Exception as e:
+            return (
+                f"Planner error while parsing JSON: {e}\n\n"
+                f"Raw planner output:\n{planner_output}"
+            )
 
-        # Step 3: Return final result
+        # Step 3: Worker executes the plan
+        worker_prompt = "Execute this plan step by step:\n\n" + "\n".join(steps)
+        result = run_agent("worker", worker_prompt)
+
         return result
 
     except Exception as e:
