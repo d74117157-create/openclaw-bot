@@ -1,5 +1,6 @@
 import os
 import json
+import requests
 from groq import Groq
 
 # ============================
@@ -58,23 +59,23 @@ def process_task(task_text):
 
 
 # ============================
-#  MULTI‑AGENT MODE
+#  SWARM MULTI‑AGENT MODE
 # ============================
 
 AGENT_PERSONAS = {
     "planner": (
-        "You are Planner, a strategic reasoning agent. "
+        "You are Planner, a strategic reasoning agent coordinating a swarm of worker bots. "
         "You MUST output ONLY valid JSON. "
-        "Your entire response MUST be a single JSON object. "
-        "Format EXACTLY like this: {\"plan\": [\"step 1\", \"step 2\", \"step 3\"]}. "
-        "Do NOT add explanations, comments, markdown, apologies, or extra text. "
-        "Do NOT wrap the JSON in backticks. "
-        "If the user request is unclear, still output a JSON object with a 'plan' array."
-    ),
-    "worker": (
-        "You are Worker, a hands‑on execution agent. "
-        "You complete tasks exactly as requested by Planner, "
-        "producing final outputs, code, writing, or analysis."
+        "Your entire response MUST be a single JSON object with this shape:\n"
+        "{\n"
+        "  \"tasks\": [\n"
+        "    {\"bot\": \"writer\", \"action\": \"create_landing_page\", \"payload\": \"...\"},\n"
+        "    {\"bot\": \"researcher\", \"action\": \"find_trending_digital_products\", \"payload\": \"...\"}\n"
+        "  ]\n"
+        "}\n"
+        "Each task MUST have: 'bot' (string), 'action' (string), 'payload' (string). "
+        "Do NOT add explanations, comments, markdown, or backticks. "
+        "If the request is unclear, still output a JSON object with an empty 'tasks' array."
     ),
 }
 
@@ -99,54 +100,93 @@ def run_agent(role, content):
     return response.choices[0].message.content
 
 
-def orchestrate_task(task_text):
-    """Planner → Worker → Final Output"""
+def dispatch_task_to_bot(task: dict) -> str:
+    """
+    Dispatch a single task to a worker OpenClaw bot via Discord webhook.
+
+    Expected task format:
+    {
+        "bot": "writer",
+        "action": "create_landing_page",
+        "payload": "Landing page for X..."
+    }
+
+    Env var convention:
+        WEBHOOK_WRITER, WEBHOOK_RESEARCHER, WEBHOOK_DESIGNER, etc.
+    """
+    bot_name = str(task.get("bot", "")).strip()
+    action = str(task.get("action", "")).strip()
+    payload = str(task.get("payload", "")).strip()
+
+    if not bot_name or not action:
+        return f"❌ Invalid task (missing bot or action): {task}"
+
+    env_key = f"WEBHOOK_{bot_name.upper()}"
+    webhook_url = os.environ.get(env_key)
+
+    if not webhook_url:
+        return f"❌ No webhook configured for bot '{bot_name}' (expected env var {env_key})"
+
+    # Message format the worker bot will receive in its channel
+    content = f"/execute {action} {payload}"
+
     try:
-        # -------------------------
-        # 1. PLANNER CREATES JSON
-        # -------------------------
+        resp = requests.post(webhook_url, json={"content": content})
+        if 200 <= resp.status_code < 300:
+            return f"✅ Dispatched '{action}' to **{bot_name}**"
+        else:
+            return (
+                f"⚠️ Failed to dispatch '{action}' to {bot_name} "
+                f"(HTTP {resp.status_code}): {resp.text}"
+            )
+    except Exception as e:
+        return f"⚠️ Error dispatching to {bot_name}: {e}"
+
+
+def orchestrate_task(task_text: str) -> str:
+    """
+    Swarm orchestrator:
+    1) Planner creates a JSON task list
+    2) Python dispatches each task to the appropriate worker bot via webhook
+    3) Returns a dispatch summary back to Discord
+    """
+    c = _get_client()
+    if c is None:
+        return "Groq API key is not configured."
+
+    try:
+        # 1) Ask Planner for a swarm task plan
         planner_output = run_agent(
             "planner",
-            f"Create a plan for this task: {task_text}"
+            f"Create a swarm execution plan for this request: {task_text}"
         )
 
-        # -------------------------
-        # 2. PARSE JSON SAFELY
-        # -------------------------
+        # 2) Parse JSON safely (with cleanup)
         try:
-            data = json.loads(planner_output)
-        except Exception:
-            # Attempt auto‑repair
-            try:
-                cleaned = planner_output.strip()
-                cleaned = cleaned.replace("```json", "").replace("```", "")
-                cleaned = cleaned.replace("\n", " ").strip()
-                data = json.loads(cleaned)
-            except Exception as e:
-                return (
-                    f"Planner error while parsing JSON: {e}\n\n"
-                    f"Raw planner output:\n{planner_output}"
-                )
+            cleaned = planner_output.strip()
+            cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+            data = json.loads(cleaned)
+        except Exception as e:
+            return (
+                f"Planner JSON error: {e}\n\n"
+                f"Raw planner output:\n{planner_output}"
+            )
 
-        steps = data.get("plan", [])
+        tasks = data.get("tasks", [])
+        if not isinstance(tasks, list):
+            return f"Planner returned invalid 'tasks' field:\n{planner_output}"
 
-        # -------------------------
-        # 3. FALLBACK PLAN
-        # -------------------------
-        if not isinstance(steps, list) or len(steps) == 0:
-            steps = [
-                "Interpret the user's request",
-                "Break it into actionable tasks",
-                "Produce the final result"
-            ]
+        if not tasks:
+            return "Planner returned no tasks. Nothing to dispatch."
 
-        # -------------------------
-        # 4. WORKER EXECUTES PLAN
-        # -------------------------
-        worker_prompt = "Execute this plan step by step:\n\n" + "\n".join(steps)
-        result = run_agent("worker", worker_prompt)
+        # 3) Dispatch each task to its worker bot
+        logs = []
+        for t in tasks:
+            logs.append(dispatch_task_to_bot(t))
 
-        return result
+        # 4) Return a summary to Discord
+        summary = "**Swarm dispatch summary:**\n" + "\n".join(logs)
+        return summary
 
     except Exception as e:
-        return f"Error in orchestration: {e}"
+        return f"Error in swarm orchestration: {e}"
