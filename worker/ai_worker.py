@@ -47,7 +47,7 @@ def process_task(task_text):
         ]
 
         response = c.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=messages,
             max_tokens=800,
         )
@@ -109,7 +109,7 @@ def run_agent(role, content):
     ]
 
     response = c.chat.completions.create(
-        model="llama3-70b-8192",
+        model="llama-3.3-70b-versatile",
         messages=messages,
         max_tokens=800,
     )
