@@ -2,7 +2,10 @@ import os
 import json
 from groq import Groq
 
-# System prompt for your assistant
+# ============================
+#  SYSTEM PROMPT
+# ============================
+
 SYSTEM_PROMPT = (
     "You are OpenClaw, a powerful AI assistant living inside Discord. "
     "You were built by Devin. You are confident, helpful, and capable. "
@@ -22,6 +25,10 @@ def _get_client():
         client = Groq(api_key=api_key)
     return client
 
+
+# ============================
+#  SINGLE‑AGENT MODE
+# ============================
 
 def process_task(task_text):
     c = _get_client()
@@ -50,16 +57,19 @@ def process_task(task_text):
         return f"Error: {e}"
 
 
-# -----------------------------
-# MULTI‑AGENT ORCHESTRATION
-# -----------------------------
+# ============================
+#  MULTI‑AGENT MODE
+# ============================
 
 AGENT_PERSONAS = {
     "planner": (
         "You are Planner, a strategic reasoning agent. "
-        "You MUST respond with ONLY valid JSON. "
-        "Format exactly as: {\"plan\": [\"step 1\", \"step 2\", \"step 3\"]}. "
-        "No extra text, no markdown, no explanations, no backticks."
+        "You MUST output ONLY valid JSON. "
+        "Your entire response MUST be a single JSON object. "
+        "Format EXACTLY like this: {\"plan\": [\"step 1\", \"step 2\", \"step 3\"]}. "
+        "Do NOT add explanations, comments, markdown, apologies, or extra text. "
+        "Do NOT wrap the JSON in backticks. "
+        "If the user request is unclear, still output a JSON object with a 'plan' array."
     ),
     "worker": (
         "You are Worker, a hands‑on execution agent. "
@@ -92,23 +102,47 @@ def run_agent(role, content):
 def orchestrate_task(task_text):
     """Planner → Worker → Final Output"""
     try:
-        # Step 1: Planner creates a JSON plan
+        # -------------------------
+        # 1. PLANNER CREATES JSON
+        # -------------------------
         planner_output = run_agent(
             "planner",
             f"Create a plan for this task: {task_text}"
         )
 
-        # Step 2: Parse JSON safely
+        # -------------------------
+        # 2. PARSE JSON SAFELY
+        # -------------------------
         try:
             data = json.loads(planner_output)
-            steps = data.get("plan", [])
-        except Exception as e:
-            return (
-                f"Planner error while parsing JSON: {e}\n\n"
-                f"Raw planner output:\n{planner_output}"
-            )
+        except Exception:
+            # Attempt auto‑repair
+            try:
+                cleaned = planner_output.strip()
+                cleaned = cleaned.replace("```json", "").replace("```", "")
+                cleaned = cleaned.replace("\n", " ").strip()
+                data = json.loads(cleaned)
+            except Exception as e:
+                return (
+                    f"Planner error while parsing JSON: {e}\n\n"
+                    f"Raw planner output:\n{planner_output}"
+                )
 
-        # Step 3: Worker executes the plan
+        steps = data.get("plan", [])
+
+        # -------------------------
+        # 3. FALLBACK PLAN
+        # -------------------------
+        if not isinstance(steps, list) or len(steps) == 0:
+            steps = [
+                "Interpret the user's request",
+                "Break it into actionable tasks",
+                "Produce the final result"
+            ]
+
+        # -------------------------
+        # 4. WORKER EXECUTES PLAN
+        # -------------------------
         worker_prompt = "Execute this plan step by step:\n\n" + "\n".join(steps)
         result = run_agent("worker", worker_prompt)
 
