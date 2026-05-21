@@ -1,1 +1,1 @@
-# worker package
+# OpenClaw — worker package
