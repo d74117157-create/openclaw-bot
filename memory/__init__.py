@@ -1,120 +1,139 @@
-from .core import init_db, save_task, update_task, get_pending_tasks, get_stats"""
-OpenClaw — memory/__init__.py
-Persistent SQLite task + decision memory for the swarm.
 """
-import os, sqlite3, json
+OpenClaw - memory/__init__.py
+SQLite persistent memory: tasks, decisions, deployments tables.
+"""
+import sqlite3, os, threading
 from datetime import datetime
 
 DB_PATH = os.environ.get("MEMORY_DB", "openclaw_memory.db")
+_lock = threading.Lock()
 
 
 def _conn():
-    c = sqlite3.connect(DB_PATH)
-    c.row_factory = sqlite3.Row
-    return c
+        return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 
 def init_db():
-    with _conn() as c:
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            desc     TEXT NOT NULL,
-            agent    TEXT NOT NULL,
-            status   TEXT DEFAULT 'pending',
-            result   TEXT,
-            created  TEXT DEFAULT (datetime('now')),
-            updated  TEXT DEFAULT (datetime('now'))
-        );
-        CREATE TABLE IF NOT EXISTS decisions (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            context  TEXT NOT NULL,
-            decision TEXT NOT NULL,
-            outcome  TEXT,
-            tags     TEXT,
-            created  TEXT DEFAULT (datetime('now'))
-        );
-        CREATE TABLE IF NOT EXISTS deployments (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            service   TEXT NOT NULL,
-            version   TEXT,
-            env       TEXT,
-            status    TEXT DEFAULT 'deployed',
-            notes     TEXT,
-            created   TEXT DEFAULT (datetime('now'))
-        );
-        """)
+        """Create tables if they do not exist."""
+        with _lock:
+                    con = _conn()
+                    cur = con.cursor()
+                    cur.executescript("""
+                        CREATE TABLE IF NOT EXISTS tasks (
+                            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                            desc      TEXT NOT NULL,
+                            agent     TEXT NOT NULL,
+                            result    TEXT,
+                            status    TEXT DEFAULT 'pending',
+                            created   TEXT DEFAULT (datetime('now')),
+                            updated   TEXT DEFAULT (datetime('now'))
+                        );
+                        CREATE TABLE IF NOT EXISTS decisions (
+                            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                            context   TEXT NOT NULL,
+                            decision  TEXT NOT NULL,
+                            created   TEXT DEFAULT (datetime('now'))
+                        );
+                        CREATE TABLE IF NOT EXISTS deployments (
+                            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                            service   TEXT NOT NULL,
+                            status    TEXT NOT NULL,
+                            notes     TEXT,
+                            created   TEXT DEFAULT (datetime('now'))
+                        );
+                    """)
+                    con.commit()
+                    con.close()
 
 
 def save_task(desc: str, agent: str) -> int:
-    with _conn() as c:
-        cur = c.execute(
-            "INSERT INTO tasks (desc, agent, status) VALUES (?, ?, 'running')",
-            (desc, agent)
-        )
-        return cur.lastrowid
+        """Insert a new task and return its id."""
+        with _lock:
+                    con = _conn()
+                    cur = con.cursor()
+                    cur.execute(
+                        "INSERT INTO tasks (desc, agent) VALUES (?, ?)",
+                        (desc, agent)
+                    )
+                    tid = cur.lastrowid
+                    con.commit()
+                    con.close()
+                return tid
 
 
-def update_task(task_id: int, result: str, status: str = "done"):
-    with _conn() as c:
-        c.execute(
-            "UPDATE tasks SET result=?, status=?, updated=datetime('now') WHERE id=?",
-            (result, status, task_id)
-        )
+def update_task(tid: int, result: str, status: str = "done"):
+        """Update task result and status."""
+    with _lock:
+                con = _conn()
+                cur = con.cursor()
+                cur.execute(
+                    "UPDATE tasks SET result=?, status=?, updated=datetime('now') WHERE id=?",
+                    (result, status, tid)
+                )
+                con.commit()
+                con.close()
 
 
-def save_decision(context: str, decision: str, outcome: str = "", tags: list = None):
-    with _conn() as c:
-        c.execute(
-            "INSERT INTO decisions (context, decision, outcome, tags) VALUES (?, ?, ?, ?)",
-            (context, decision, outcome, json.dumps(tags or []))
-        )
+def get_tasks(limit: int = 20) -> list:
+        """Return recent tasks."""
+    with _lock:
+                con = _conn()
+                cur = con.cursor()
+                cur.execute(
+                    "SELECT id, desc, agent, status, created FROM tasks ORDER BY id DESC LIMIT ?",
+                    (limit,)
+                )
+                rows = cur.fetchall()
+                con.close()
+            return rows
 
 
-def save_deployment(service: str, version: str, env: str, notes: str = ""):
-    with _conn() as c:
-        c.execute(
-            "INSERT INTO deployments (service, version, env, notes) VALUES (?, ?, ?, ?)",
-            (service, version, env, notes)
-        )
+def save_decision(context: str, decision: str):
+        """Record a decision."""
+    with _lock:
+                con = _conn()
+                cur = con.cursor()
+                cur.execute(
+                    "INSERT INTO decisions (context, decision) VALUES (?, ?)",
+                    (context, decision)
+                )
+                con.commit()
+                con.close()
+
+
+def save_deployment(service: str, status: str, notes: str = ""):
+        """Record a deployment event."""
+    with _lock:
+                con = _conn()
+                cur = con.cursor()
+                cur.execute(
+                    "INSERT INTO deployments (service, status, notes) VALUES (?, ?, ?)",
+                    (service, status, notes)
+                )
+                con.commit()
+                con.close()
 
 
 def get_stats() -> dict:
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT status, COUNT(*) as cnt FROM tasks GROUP BY status"
-        ).fetchall()
-        total = c.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-        deploys = c.execute("SELECT COUNT(*) FROM deployments").fetchone()[0]
-        decisions = c.execute("SELECT COUNT(*) FROM decisions").fetchone()[0]
-    stats = {r["status"]: r["cnt"] for r in rows}
-    stats["total_tasks"] = total
-    stats["deployments"] = deploys
-    stats["decisions"] = decisions
-    return stats
-
-
-def get_recent_tasks(limit: int = 10) -> list[dict]:
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT id, desc, agent, status, created FROM tasks ORDER BY id DESC LIMIT ?",
-            (limit,)
-        ).fetchall()
-    return [dict(r) for r in rows]
-
-
-def get_failed_tasks() -> list[dict]:
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT id, desc, agent, result FROM tasks WHERE status='failed' ORDER BY id DESC"
-        ).fetchall()
-    return [dict(r) for r in rows]
-
-
-def search_decisions(query: str) -> list[dict]:
-    with _conn() as c:
-        rows = c.execute(
-            "SELECT * FROM decisions WHERE context LIKE ? OR decision LIKE ? ORDER BY id DESC LIMIT 20",
-            (f"%{query}%", f"%{query}%")
-        ).fetchall()
-    return [dict(r) for r in rows]
+        """Return a summary of current memory state."""
+    with _lock:
+                con = _conn()
+                cur = con.cursor()
+                cur.execute("SELECT COUNT(*) FROM tasks")
+                total = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM tasks WHERE status='done'")
+                done = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM tasks WHERE status='failed'")
+                failed = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM decisions")
+                decisions = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM deployments")
+                deploys = cur.fetchone()[0]
+                con.close()
+            return {
+                        "tasks_total": total,
+                        "tasks_done": done,
+                        "tasks_failed": failed,
+                        "decisions": decisions,
+                        "deployments": deploys,
+            }
