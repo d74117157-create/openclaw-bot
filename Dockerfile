@@ -26,5 +26,6 @@ RUN mkdir -p memory bots logs /tmp/openclaw_screenshots
 ENV PYTHONUNBUFFERED=1
 ENV BROWSER_HEADLESS=true
 ENV SCREENSHOT_DIR=/tmp/openclaw_screenshots
+ENV PYTHONPATH=/app
 
 CMD ["sh", "-c", "python gateway/brain_bot.py & python gateway/slack_bot.py & python bot_factory.py & wait"]
