@@ -1,7 +1,6 @@
 """
 OpenClaw - worker/ai_worker.py
 Groq LLM engine: 9 agent personas, task processing, orchestration.
-FIXED: Complete indentation, proper function structure.
 """
 import os
 import json
@@ -70,7 +69,7 @@ def orchestrate_task(task: str) -> str:
         f"Task: {task}"
     )
     result = _chat(system, prompt, max_tokens=1024)
-    
+
     # Strip markdown code fences if present
     result = result.strip()
     if result.startswith("```"):
@@ -80,17 +79,17 @@ def orchestrate_task(task: str) -> str:
             if result.startswith("json"):
                 result = result[4:].lstrip()
         result = result.rstrip()
-    
+
     return result
 
 
 def multi_agent_pipeline(task: str) -> dict:
-    """Run orchestrator then execute each subtask with the assigned agent."""
+    """Run orchestrator then execute each subtask with assigned agent."""
     try:
         plan_raw = orchestrate_task(task)
         plan = json.loads(plan_raw)
     except Exception as e:
-        print(f"[orchestrate] Fallback: {e}")
+        print(f"[Orchestrate] Fallback: {e}")
         plan = [{"agent": "orchestrator", "task": task}]
 
     results = {}
@@ -99,5 +98,5 @@ def multi_agent_pipeline(task: str) -> dict:
         subtask = step.get("task", task)
         if agent in AGENT_PERSONAS:
             results[agent] = process_task(subtask, agent)
-    
+
     return results
