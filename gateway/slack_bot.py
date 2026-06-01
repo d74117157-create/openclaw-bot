@@ -12,7 +12,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from dotenv import load_dotenv
 
 from memory import init_db, save_task, update_task, get_stats, save_decision
-from worker.ai_worker import process_task, orchestrate_task, AGENT_PERSONAS
+from worker.ai_worker import process_task, orchestrate_task, PERSONAS as AGENT_PERSONAS
 from worker.slack_reporter import task_started, agent_complete, task_complete
 
 load_dotenv()
