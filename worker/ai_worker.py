@@ -9,4 +9,4 @@ def process_task(task, agent="orchestrator"): return chat(PERSONAS.get(agent, PE
 def orchestrate_task(task): return process_task(task, "orchestrator")
 def multi_agent_pipeline(task): plan = process_task(task, "orchestrator"); code = process_task(task, "coder"); review = process_task(code, "reviewer"); tests = process_task(code, "qa"); return {"plan": plan, "code": code, "review": review, "tests": tests}
           
-          AGENT_PERSONAS = PERSONAS
+          
