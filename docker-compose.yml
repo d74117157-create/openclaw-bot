@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: bash -lc "python gateway/bot.py"
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
+  slack-bot:
+    build: .
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: bash -lc "python gateway/slack_bot.py"
+    volumes:
+      - ./:/app
+    restart: unless-stopped
+
+  # Optional: add an Ollama service if you have an image available locally
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
