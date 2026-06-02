@@ -1,0 +1,25 @@
+# Render environment variables (example)
+# Copy values into Render service Environment -> Environment Variables (secure)
+
+# Slack
+SLACK_BOT_TOKEN=        # xoxb-... (Bot Token) - set as secret in Render
+SLACK_APP_TOKEN=        # xapp-... (App-level token for Socket Mode) - set as secret in Render
+SLACK_CHANNEL=          # channel name or ID where the bot should post
+
+# Discord (if running in same service)
+DISCORD_TOKEN=          # Bot token for Discord
+
+# LLM Backends (choose one or provide multiple)
+OLLAMA_BASE_URL=        # e.g. http://localhost:11434 or https://ollama.example.com
+OLLAMA_MODEL=deepseek-r1:7b
+ANTHROPIC_API_KEY=      # if using Anthropic
+GROQ_API_KEY=           # if using Groq
+GROQ_MODEL=llama-3.1-8b-instant
+
+# Optional: memory DB path (if using SQLite inside container)
+MEMORY_DB=/app/openclaw_memory.db
+
+# Render-specific (DO NOT commit real values to repo)
+# RENDER_API_KEY and RENDER_SERVICE_ID are repository secrets used by the GitHub Action
+# RENDER_API_KEY=        # set as GitHub Actions secret, not an environment var here
+# RENDER_SERVICE_ID=     # set as GitHub Actions secret
