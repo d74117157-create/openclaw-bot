@@ -10,6 +10,15 @@ if [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
 
+# Run env checks to fail fast with clear messages
+if [ -f scripts/env_check.py ]; then
+  echo "Running environment checks..."
+  python3 scripts/env_check.py || {
+    echo "Environment validation failed. Check Render/GitHub secrets and logs for details." >&2
+    exit 1
+  }
+fi
+
 # Start Slack bot in background
 if [ -f gateway/slack_bot.py ]; then
   echo "Starting Slack bot..."
