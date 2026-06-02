@@ -1,1 +1,1 @@
-web: python gateway/health_server.py
+web: ./start.sh
