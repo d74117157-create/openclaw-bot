@@ -1,5 +1,6 @@
 discord.py==2.3.2
+groq
 slack-sdk
 requests
 python-dotenv
-anthropic
+
