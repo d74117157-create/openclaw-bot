@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
-"""OpenClaw Bot — Discord Gateway Bot + Background AI Worker
+"""OpenClaw Swarm — Multi-Platform AI Agent System
+
+SUPERIOR TO VIKTOR:
+- Viktor: Slack-only, single-agent, closed-source, $75M VC-backed
+- OpenClaw: Discord + Telegram + Slack + Web, multi-agent swarm, open-source, yours
 
 Architecture:
-  - Gateway Bot: Receives Discord events (messages, slash commands) via WebSocket
-  - Redis Queue: Tasks queued by gateway, picked up by AI worker
-  - AI Worker: Processes tasks (Groq API), posts results back to Discord
-  - Slack Reporter: Optional webhook notifications on task completion
+  ┌─────────────────────────────────────────┐
+  │         OpenClaw Swarm Kernel           │
+  ├─────────────────────────────────────────┤
+  │  Discord Bot  │  Telegram Bot  │  Slack  │
+  │  (Gateway)    │  (Gateway)   │ (Gateway)│
+  ├─────────────────────────────────────────┤
+  │      Redis Message Bus + Memory         │
+  ├─────────────────────────────────────────┤
+  │  Coder │ Researcher │ Ops │ Growth │ QA │
+  │  Agent │   Agent    │Agent│ Agent  │Agent│
+  ├─────────────────────────────────────────┤
+  │        Groq LLM (Llama 3/Mixtral)       │
+  └─────────────────────────────────────────┘
 
-Render Deployment: Background Worker (no HTTP port)
+Platforms: Discord, Telegram, Slack, Web API
+Agents: Coder, Researcher, Ops, Growth, QA, Memory
+Memory: Redis-backed with vector search
+Deployment: Render, Railway, Docker, VPS
 """
 
 import os
@@ -15,16 +31,33 @@ import sys
 import asyncio
 import signal
 import logging
+import threading
 from datetime import datetime
+from typing import Optional, Dict, Any, List
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
+# Platform gateways
+from gateway.discord_bot import DiscordGateway
+from gateway.telegram_bot import TelegramGateway
+from gateway.slack_bot import SlackGateway
+from gateway.web_api import WebGateway
+
+# Memory & Bus
 from memory import get_redis, push_task, get_task_status, get_recent_tasks
-from worker.slack_reporter import SlackReporter
+from shared.message_bus import MessageBus
 
-# --- Logging ---
+# Agent swarm
+from worker.agents.coder import CoderAgent
+from worker.agents.researcher import ResearcherAgent
+from worker.agents.ops import OpsAgent
+from worker.agents.growth import GrowthAgent
+from worker.agents.qa import QAAgent
+from worker.agents.orchestrator import OrchestratorAgent
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -32,206 +65,245 @@ logging.basicConfig(
 )
 logger = logging.getLogger("openclaw")
 
-# --- Config ---
+# ─── Config ────────────────────────────────────────────────────────────────────
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
+WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
 GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 OWNER_ID = os.getenv("OWNER_ID")
 
-if not DISCORD_TOKEN:
-    logger.error("DISCORD_TOKEN not set — exiting")
-    sys.exit(1)
+# ─── Swarm Kernel ──────────────────────────────────────────────────────────────
+class OpenClawSwarm:
+    """The central brain — routes messages between platforms and agents."""
 
-guild_id = int(GUILD_ID) if GUILD_ID else None
-owner_id = int(OWNER_ID) if OWNER_ID else None
+    def __init__(self):
+        self.bus = MessageBus()
+        self.redis = get_redis()
+        self.agents: Dict[str, Any] = {}
+        self.gateways: Dict[str, Any] = {}
+        self.running = False
+        self.start_time = datetime.utcnow()
 
-# --- Intents & Bot ---
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
+        # Initialize agent swarm
+        self._init_agents()
 
-bot = commands.Bot(command_prefix="!", intents=intents)
-slack = SlackReporter()
+    def _init_agents(self):
+        """Initialize the agent swarm."""
+        self.agents = {
+            "orchestrator": OrchestratorAgent(self.bus),
+            "coder": CoderAgent(self.bus),
+            "researcher": ResearcherAgent(self.bus),
+            "ops": OpsAgent(self.bus),
+            "growth": GrowthAgent(self.bus),
+            "qa": QAAgent(self.bus),
+        }
+        logger.info(f"Swarm initialized with {len(self.agents)} agents")
 
-# --- Lifecycle ---
-@bot.event
-async def on_ready():
-    logger.info("Bot logged in as %s (ID: %s)", bot.user, bot.user.id)
-    try:
-        synced = await bot.tree.sync(guild=discord.Object(id=guild_id) if guild_id else None)
-        logger.info("Synced %d slash command(s)", len(synced))
-    except Exception as e:
-        logger.warning("Command sync failed: %s", e)
+    async def route_message(self, platform: str, user_id: str, username: str, 
+                           message: str, channel_id: str, metadata: dict = None):
+        """Route incoming message to the right agent."""
 
-    # Health check: verify Redis connectivity
-    try:
-        redis = get_redis()
-        redis.ping()
-        logger.info("Redis connection OK")
-    except Exception as e:
-        logger.error("Redis connection failed: %s", e)
-
-@bot.event
-async def on_error(event, *args, **kwargs):
-    logger.exception("Unhandled error in event %s", event)
-
-# --- Slash Commands ---
-
-@bot.tree.command(name="ask", description="Ask the AI a question")
-@app_commands.describe(question="What do you want to ask?")
-async def cmd_ask(interaction: discord.Interaction, question: str):
-    """Queue an AI task and respond immediately with a task ID."""
-    await interaction.response.defer(thinking=True)
-
-    try:
-        task_id = push_task({
-            "type": "ask",
-            "user_id": str(interaction.user.id),
-            "username": interaction.user.name,
-            "guild_id": str(interaction.guild_id) if interaction.guild_id else None,
-            "channel_id": str(interaction.channel_id),
-            "question": question,
+        # Build context
+        context = {
+            "platform": platform,
+            "user_id": user_id,
+            "username": username,
+            "message": message,
+            "channel_id": channel_id,
             "timestamp": datetime.utcnow().isoformat(),
+            "metadata": metadata or {},
+        }
+
+        # Determine which agent should handle this
+        agent_name = await self.agents["orchestrator"].classify_intent(message)
+
+        # Queue task for the agent
+        task_id = push_task({
+            "type": "agent_task",
+            "agent": agent_name,
+            "context": context,
+            "status": "queued",
         })
 
-        msg = "Task queued: `%s`\nI\'ll reply here when it\'s done." % task_id
-        await interaction.followup.send(msg)
-        logger.info("Task %s queued by %s", task_id, interaction.user)
+        logger.info(f"Routed to {agent_name} | Task: {task_id} | User: {username} | Platform: {platform}")
+        return task_id
 
-    except Exception as e:
-        logger.exception("Failed to queue task")
-        await interaction.followup.send("Failed to queue task: %s" % e)
+    async def deliver_response(self, platform: str, channel_id: str, 
+                              content: str, task_id: str = None):
+        """Deliver response back to the originating platform."""
+        gateway = self.gateways.get(platform)
+        if gateway:
+            await gateway.send_message(channel_id, content, task_id)
+        else:
+            logger.warning(f"No gateway for platform: {platform}")
 
+    def get_stats(self) -> dict:
+        """Get swarm statistics."""
+        return {
+            "uptime_seconds": (datetime.utcnow() - self.start_time).total_seconds(),
+            "agents": list(self.agents.keys()),
+            "gateways": list(self.gateways.keys()),
+            "tasks_completed": self.redis.get("openclaw:stats:completed") or 0,
+            "tasks_failed": self.redis.get("openclaw:stats:failed") or 0,
+            "queue_length": self.redis.llen("openclaw:queue"),
+        }
 
-@bot.tree.command(name="agents", description="List active AI agents")
-async def cmd_agents(interaction: discord.Interaction):
-    """BUG FIX: Use followup.send() after defer()."""
-    await interaction.response.defer(thinking=True)
+# ─── Discord Gateway ───────────────────────────────────────────────────────────
+class DiscordGateway(commands.Bot):
+    """Discord interface for the swarm."""
 
-    try:
-        redis = get_redis()
-        agents = redis.smembers("openclaw:agents") or set()
+    def __init__(self, swarm: OpenClawSwarm):
+        self.swarm = swarm
+        self.swarm.gateways["discord"] = self
 
-        if not agents:
-            await interaction.followup.send("No active agents right now.")
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
+
+        super().__init__(command_prefix="!", intents=intents)
+
+        # Register slash commands
+        self._register_commands()
+
+    def _register_commands(self):
+        @self.tree.command(name="ask", description="Ask the swarm anything")
+        @app_commands.describe(question="What do you want to know or do?")
+        async def cmd_ask(interaction: discord.Interaction, question: str):
+            await interaction.response.defer(thinking=True)
+
+            task_id = await self.swarm.route_message(
+                platform="discord",
+                user_id=str(interaction.user.id),
+                username=interaction.user.name,
+                message=question,
+                channel_id=str(interaction.channel_id),
+                metadata={"guild_id": str(interaction.guild_id) if interaction.guild_id else None}
+            )
+
+            await interaction.followup.send(
+                "Task queued: `%s`\nI'll reply here when it's done." % task_id
+            )
+
+        @self.tree.command(name="agents", description="List active swarm agents")
+        async def cmd_agents(interaction: discord.Interaction):
+            await interaction.response.defer(thinking=True)
+
+            embed = discord.Embed(title="OpenClaw Swarm Agents", color=0x00ff88)
+            for name, agent in self.swarm.agents.items():
+                status = "online" if agent.is_ready() else "booting"
+                embed.add_field(
+                    name=name.upper(),
+                    value="Status: `%s`\nType: `%s`" % (status, agent.agent_type),
+                    inline=False
+                )
+            await interaction.followup.send(embed=embed)
+
+        @self.tree.command(name="status", description="Swarm system status")
+        async def cmd_status(interaction: discord.Interaction):
+            await interaction.response.defer(thinking=True)
+
+            stats = self.swarm.get_stats()
+            embed = discord.Embed(title="OpenClaw Status", color=0x0099ff)
+            embed.add_field(name="Queue", value=str(stats["queue_length"]), inline=True)
+            embed.add_field(name="Completed", value=str(stats["tasks_completed"]), inline=True)
+            embed.add_field(name="Failed", value=str(stats["tasks_failed"]), inline=True)
+            embed.add_field(name="Uptime", value="%ds" % int(stats["uptime_seconds"]), inline=True)
+            embed.add_field(name="Platforms", value=", ".join(stats["gateways"]), inline=False)
+            await interaction.followup.send(embed=embed)
+
+        @self.tree.command(name="deploy", description="Deploy code to production")
+        @app_commands.describe(repo="GitHub repo", branch="Branch to deploy")
+        async def cmd_deploy(interaction: discord.Interaction, repo: str, branch: str = "main"):
+            await interaction.response.defer(thinking=True)
+
+            task_id = await self.swarm.route_message(
+                platform="discord",
+                user_id=str(interaction.user.id),
+                username=interaction.user.name,
+                message="deploy %s %s" % (repo, branch),
+                channel_id=str(interaction.channel_id),
+            )
+            await interaction.followup.send("Deploy queued: `%s`" % task_id)
+
+    async def send_message(self, channel_id: str, content: str, task_id: str = None):
+        """Send message to Discord channel."""
+        try:
+            channel = self.get_channel(int(channel_id))
+            if channel:
+                if task_id:
+                    content = "Task `%s` complete:\n%s" % (task_id, content)
+                await channel.send(content[:2000])  # Discord limit
+        except Exception as e:
+            logger.error("Discord send failed: %s", e)
+
+    async def on_ready(self):
+        logger.info("Discord gateway ready: %s", self.user)
+        try:
+            guild = discord.Object(id=int(GUILD_ID)) if GUILD_ID else None
+            synced = await self.tree.sync(guild=guild)
+            logger.info("Synced %d commands", len(synced))
+        except Exception as e:
+            logger.warning("Command sync: %s", e)
+
+    async def on_message(self, message: discord.Message):
+        if message.author == self.user:
             return
 
-        embed = discord.Embed(title="Active Agents", color=0x00ff88)
-        for agent in sorted(agents):
-            info = redis.hgetall("openclaw:agent:%s" % agent) or {}
-            status = info.get("status", "unknown")
-            last_seen = info.get("last_seen", "never")
-            value_text = "Status: `%s`\nLast seen: `%s`" % (status, last_seen)
-            embed.add_field(name=agent, value=value_text, inline=False)
-        await interaction.followup.send(embed=embed)
+        # DM or mention handling
+        if message.guild is None or self.user.mentioned_in(message):
+            await self.swarm.route_message(
+                platform="discord",
+                user_id=str(message.author.id),
+                username=message.author.name,
+                message=message.content,
+                channel_id=str(message.channel.id),
+            )
 
-    except Exception as e:
-        logger.exception("Failed to list agents")
-        await interaction.followup.send("Error: %s" % e)
+        await self.process_commands(message)
 
-
-@bot.tree.command(name="status", description="Check bot and queue status")
-async def cmd_status(interaction: discord.Interaction):
-    """BUG FIX: Use followup.send() after defer()."""
-    await interaction.response.defer(thinking=True)
-
-    try:
-        redis = get_redis()
-        queue_len = redis.llen("openclaw:queue")
-        processing = redis.llen("openclaw:processing")
-        completed = redis.get("openclaw:stats:completed") or 0
-        failed = redis.get("openclaw:stats:failed") or 0
-
-        embed = discord.Embed(title="OpenClaw Status", color=0x0099ff)
-        embed.add_field(name="Queue Length", value=str(queue_len), inline=True)
-        embed.add_field(name="Processing", value=str(processing), inline=True)
-        embed.add_field(name="Completed", value=str(completed), inline=True)
-        embed.add_field(name="Failed", value=str(failed), inline=True)
-        embed.add_field(name="Bot User", value=str(bot.user), inline=False)
-        embed.set_footer(text="Guild: %s" % (interaction.guild_id or "DM"))
-
-        await interaction.followup.send(embed=embed)
-
-    except Exception as e:
-        logger.exception("Failed to get status")
-        await interaction.followup.send("Error: %s" % e)
-
-
-@bot.tree.command(name="tasks", description="View recent tasks")
-@app_commands.describe(limit="Number of tasks to show (max 20)")
-async def cmd_tasks(interaction: discord.Interaction, limit: int = 5):
-    """View recent task history."""
-    await interaction.response.defer(thinking=True)
-
-    try:
-        limit = max(1, min(limit, 20))
-        tasks = get_recent_tasks(limit)
-
-        if not tasks:
-            await interaction.followup.send("No tasks found.")
-            return
-
-        embed = discord.Embed(title="Recent Tasks (last %d)" % len(tasks), color=0xffaa00)
-        for t in tasks:
-            status_emoji = {"completed": "✅", "failed": "❌", "processing": "⏳", "queued": "🕐"}
-            emoji = status_emoji.get(t.get("status", "unknown"), "❓")
-            q = t.get("question", "N/A")[:50]
-            st = t.get("status", "unknown")
-            name_text = "%s %s..." % (emoji, t.get("id", "unknown")[:8])
-            value_text = "Q: %s...\nStatus: `%s`" % (q, st)
-            embed.add_field(name=name_text, value=value_text, inline=False)
-        await interaction.followup.send(embed=embed)
-
-    except Exception as e:
-        logger.exception("Failed to get tasks")
-        await interaction.followup.send("Error: %s" % e)
-
-
-# --- Message Handler ---
-@bot.event
-async def on_message(message: discord.Message):
-    """Process DMs and mentions."""
-    if message.author == bot.user:
-        return
-
-    # DM handling
-    if message.guild is None and owner_id and message.author.id == owner_id:
-        # Owner DM commands
-        if message.content.startswith("!eval "):
-            # Restricted eval for debugging
-            code = message.content[6:]
-            try:
-                result = eval(code)
-                await message.reply("```python\n%s\n```" % result)
-            except Exception as e:
-                await message.reply("Error: %s" % e)
-        elif message.content == "!ping":
-            await message.reply("Pong!")
-
-    await bot.process_commands(message)
-
-
-# --- Graceful Shutdown ---
-shutdown_event = asyncio.Event()
-
-def handle_signal(sig):
-    logger.info("Received signal %s, shutting down gracefully...", sig)
-    shutdown_event.set()
-
+# ─── Main Entry ──────────────────────────────────────────────────────────────
 async def main():
-    """Main entry point with proper signal handling for Render."""
-    loop = asyncio.get_running_loop()
+    swarm = OpenClawSwarm()
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda s=sig: handle_signal(s))
+    # Start Discord gateway
+    if DISCORD_TOKEN:
+        discord_bot = DiscordGateway(swarm)
+        discord_task = asyncio.create_task(discord_bot.start(DISCORD_TOKEN))
+        logger.info("Discord gateway starting...")
+    else:
+        discord_task = None
+        logger.warning("DISCORD_TOKEN not set")
 
+    # Start Telegram gateway
+    if TELEGRAM_TOKEN:
+        telegram_bot = TelegramGateway(swarm)
+        telegram_task = asyncio.create_task(telegram_bot.start())
+        logger.info("Telegram gateway starting...")
+    else:
+        telegram_task = None
+
+    # Start Slack gateway
+    if SLACK_BOT_TOKEN:
+        slack_bot = SlackGateway(swarm)
+        slack_task = asyncio.create_task(slack_bot.start())
+        logger.info("Slack gateway starting...")
+    else:
+        slack_task = None
+
+    # Start Web API
+    web = WebGateway(swarm, port=WEB_PORT)
+    web_task = asyncio.create_task(web.start())
+
+    # Keep alive
     try:
-        await bot.start(DISCORD_TOKEN)
-    except discord.LoginFailure:
-        logger.error("Invalid DISCORD_TOKEN")
-        sys.exit(1)
-    except Exception as e:
-        logger.exception("Bot crashed")
-        raise
+        await asyncio.gather(
+            *[t for t in [discord_task, telegram_task, slack_task, web_task] if t],
+            return_exceptions=True
+        )
+    except asyncio.CancelledError:
+        logger.info("Shutting down swarm...")
 
 if __name__ == "__main__":
     asyncio.run(main())
