@@ -3,25 +3,15 @@ name: Deploy and Notify
 # =============================================================================
 # TRIGGERS
 # =============================================================================
-# - push to main: auto-deploy on every merge
-# - workflow_dispatch: manual run for testing or secret rotation verification
-# =============================================================================
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Minimal permissions for the GITHUB_TOKEN
 permissions:
   contents: read
 
-# =============================================================================
-# JOBS
-# =============================================================================
 jobs:
-  # ---------------------------------------------------------------------------
-  # BUILD
-  # ---------------------------------------------------------------------------
   build:
     runs-on: ubuntu-latest
     steps:
@@ -42,12 +32,6 @@ jobs:
         run: |
           pytest --tb=short -q 2>/dev/null || echo "No tests configured — skipping"
 
-  # ---------------------------------------------------------------------------
-  # DEPLOY
-  # ---------------------------------------------------------------------------
-  # This job preserves your existing deploy behavior exactly.
-  # Replace the placeholder step below with your real deploy command.
-  # ---------------------------------------------------------------------------
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -64,13 +48,6 @@ jobs:
           # curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
           exit 0
 
-  # ---------------------------------------------------------------------------
-  # NOTIFY
-  # ---------------------------------------------------------------------------
-  # Runs after deploy regardless of success or failure.
-  # Sends the final status to Slack, Discord, and Telegram.
-  # All credentials are read from GitHub Secrets only.
-  # ---------------------------------------------------------------------------
   notify:
     needs: deploy
     if: always()
@@ -112,71 +89,55 @@ Run: ${RUN_URL}"
 
       # -----------------------------------------------------------------------
       # SLACK
-      # Secret: SLACK_WEBHOOK  (Repository or Environment secret)
       # -----------------------------------------------------------------------
       - name: Notify Slack
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
         run: |
-          if [ -z "$SLACK_WEBHOOK" ]; then
-            echo "SLACK_WEBHOOK not set — skipping Slack notification"
-            exit 0
-          fi
+          if [ -z "$SLACK_WEBHOOK" ]; then echo "SLACK_WEBHOOK not set — skipping"; exit 0; fi
           MESSAGE="${{ steps.payload.outputs.message }}"
           PAYLOAD=$(jq -n --arg text "$MESSAGE" '{"text": $text}')
-          curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "$SLACK_WEBHOOK"
+          curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "$SLACK_WEBHOOK"
         continue-on-error: true
 
       # -----------------------------------------------------------------------
-      # DISCORD (Webhook)
-      # Secret: DISCORD_WEBHOOK  (Repository or Environment secret)
+      # DISCORD WEBHOOK
       # -----------------------------------------------------------------------
-      - name: Notify Discord via Webhook
+      - name: Notify Discord (Webhook)
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          if [ -z "$DISCORD_WEBHOOK" ]; then
-            echo "DISCORD_WEBHOOK not set — skipping Discord webhook notification"
-            exit 0
-          fi
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "DISCORD_WEBHOOK not set — skipping"; exit 0; fi
           MESSAGE="${{ steps.payload.outputs.message }}"
           COLOR="${{ steps.payload.outputs.color }}"
-          PAYLOAD=$(jq -n             --arg content "$MESSAGE"             --argjson color "$COLOR"             '{"content": $content, "embeds": [{"color": $color, "description": $content}]}')
-          curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "$DISCORD_WEBHOOK"
+          PAYLOAD=$(jq -n --arg content "$MESSAGE" --argjson color "$COLOR" '{"content": $content, "embeds": [{"color": $color, "description": $content}]}')
+          curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "$DISCORD_WEBHOOK"
         continue-on-error: true
 
       # -----------------------------------------------------------------------
-      # TELEGRAM (Primary Bot)
-      # Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+      # TELEGRAM PRIMARY
       # -----------------------------------------------------------------------
       - name: Notify Telegram (Primary)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — skipping Telegram notification"
-            exit 0
-          fi
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then echo "Telegram primary secrets not set — skipping"; exit 0; fi
           MESSAGE="${{ steps.payload.outputs.message }}"
-          PAYLOAD=$(jq -n             --arg chat_id "$TELEGRAM_CHAT_ID"             --arg text "$MESSAGE"             '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
-          curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          PAYLOAD=$(jq -n --arg chat_id "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
+          curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
         continue-on-error: true
 
       # -----------------------------------------------------------------------
-      # TELEGRAM (Secondary Bot - Backup)
-      # Secrets: TELEGRAM_BOT_TOKEN_2, TELEGRAM_CHAT_ID
+      # TELEGRAM SECONDARY
       # -----------------------------------------------------------------------
       - name: Notify Telegram (Secondary)
         env:
           TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN_2" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "TELEGRAM_BOT_TOKEN_2 or TELEGRAM_CHAT_ID not set — skipping secondary Telegram notification"
-            exit 0
-          fi
+          if [ -z "$TELEGRAM_BOT_TOKEN_2" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then echo "Telegram secondary secrets not set — skipping"; exit 0; fi
           MESSAGE="${{ steps.payload.outputs.message }}"
-          PAYLOAD=$(jq -n             --arg chat_id "$TELEGRAM_CHAT_ID"             --arg text "$MESSAGE"             '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
-          curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN_2}/sendMessage"
+          PAYLOAD=$(jq -n --arg chat_id "$TELEGRAM_CHAT_ID" --arg text "$MESSAGE" '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
+          curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN_2}/sendMessage"
         continue-on-error: true
