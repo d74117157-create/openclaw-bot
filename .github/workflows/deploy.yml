@@ -1,4 +1,4 @@
-name: OpenClaw CI/CD — Test, Build & Deploy
+name: OpenClaw CI/CD — Test
 
 on:
   push:
@@ -25,27 +25,3 @@ jobs:
           GROQ_API_KEY: test
           SLACK_BOT_TOKEN: test
           MEMORY_DB: ":memory:"
-
-  deploy:
-    name: Deploy to Railway
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @railway/cli
-      - run: railway up --service openclaw-brain --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      - name: Notify Slack success
-        if: success()
-        run: |
-          curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{"text":"OpenClaw deployed to Railway by ${{ github.actor }}"}'
-      - name: Notify Slack failure
-        if: failure()
-        run: |
-          curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{"text":"OpenClaw deploy FAILED — check Actions"}'
