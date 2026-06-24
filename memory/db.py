@@ -209,3 +209,49 @@ def get_or_create_unified_user(telegram_id: str = None, discord_id: str = None, 
         
         con.close()
         return unified_id
+
+
+def search_decisions(query: str, limit: int = 10) -> list:
+    """Search decisions by keyword in context or decision text."""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        like = f"%{query}%"
+        cur.execute(
+            "SELECT context, decision, platform, status, created FROM decisions "
+            "WHERE context LIKE ? OR decision LIKE ? ORDER BY created DESC LIMIT ?",
+            (like, like, limit)
+        )
+        rows = cur.fetchall()
+        con.close()
+        return [{"context": r[0], "decision": r[1], "platform": r[2], "status": r[3], "created": r[4]} for r in rows]
+
+
+def get_recent_tasks(limit: int = 10) -> list:
+    """Return most recently updated tasks."""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "SELECT id, desc, agent, platform, status, result, updated FROM tasks ORDER BY updated DESC LIMIT ?",
+            (limit,)
+        )
+        rows = cur.fetchall()
+        con.close()
+        return [{"id": f"task_{r[0]}", "description": r[1], "agent": r[2],
+                 "platform": r[3], "status": r[4], "result": r[5], "updated": r[6]} for r in rows]
+
+
+def get_failed_tasks(limit: int = 20) -> list:
+    """Return recent failed tasks."""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "SELECT id, desc, agent, platform, result, updated FROM tasks WHERE status='failed' ORDER BY updated DESC LIMIT ?",
+            (limit,)
+        )
+        rows = cur.fetchall()
+        con.close()
+        return [{"id": f"task_{r[0]}", "description": r[1], "agent": r[2],
+                 "platform": r[3], "result": r[4], "updated": r[5]} for r in rows]

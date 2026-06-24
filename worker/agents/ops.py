@@ -92,3 +92,23 @@ class OpsAgent(BaseAgent):
         """General ops advice."""
         system = "You are a senior DevOps engineer. Provide expert advice on infrastructure, CI/CD, and operations."
         return await self._call_llm(system, prompt)
+
+
+# ── Functional shim for backward-compat with agents/__init__.py ──
+from shared.message_bus import get_default_bus as _get_bus
+
+def run(task: str) -> str:
+    """Sync shim — runs agent via default bus. Used by AGENT_DISPATCH."""
+    import asyncio
+    agent = OpsAgent(_get_bus())
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, agent.process({"task": task, "message": task}))
+                return future.result(timeout=120)
+        else:
+            return loop.run_until_complete(agent.process({"task": task, "message": task}))
+    except Exception as e:
+        return f"Agent error: {e}"

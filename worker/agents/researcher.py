@@ -110,3 +110,22 @@ class ResearcherAgent(BaseAgent):
 3. Visualizations (describe what charts would show this)
 4. Anomalies or outliers"""
         return await self._call_llm(system, query)
+
+
+# ── Functional shim ──
+from shared.message_bus import get_default_bus as _get_bus
+
+def run(task: str) -> str:
+    import asyncio
+    agent = ResearcherAgent(_get_bus())
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, agent.process({"task": task, "message": task}))
+                return future.result(timeout=120)
+        else:
+            return loop.run_until_complete(agent.process({"task": task, "message": task}))
+    except Exception as e:
+        return f"Agent error: {e}"

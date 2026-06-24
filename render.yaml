@@ -27,4 +27,10 @@ services:
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: MEMORY_DB
+        value: /app/data/openclaw_memory.db
+    disk:
+      name: openclaw-data
+      mountPath: /app/data
+      sizeGB: 1
     autoDeploy: true

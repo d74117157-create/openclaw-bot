@@ -129,3 +129,20 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# ── Backward-compat shim: _chat(system, user) → sync wrapper around call_groq ──
+def _chat(system_prompt: str, user_prompt: str) -> str:
+    """Sync wrapper for call_groq. Used by reviewer, research, memory_agent."""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, call_groq(system_prompt, user_prompt))
+                return future.result(timeout=60)
+        else:
+            return loop.run_until_complete(call_groq(system_prompt, user_prompt))
+    except Exception as e:
+        return f"LLM error: {e}"
