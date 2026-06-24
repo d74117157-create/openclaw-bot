@@ -1,1 +1,1 @@
-web: ./start.sh
+worker: python3 -m gateway.bot
