@@ -1,10 +1,6 @@
-# OpenClaw Swarm — Render Deployment
-# Better than Viktor: Multi-platform, multi-agent, self-hosted
-
 services:
-  # Main Swarm Kernel (Discord + Web API)
   - type: worker
-    name: openclaw-kernel
+    name: openclaw-bot
     runtime: docker
     plan: starter
     envVars:
@@ -14,61 +10,16 @@ services:
         sync: false
       - key: OWNER_ID
         sync: false
-      - key: TELEGRAM_TOKEN
+      - key: GROQ_API_KEY
         sync: false
+      - key: GROQ_MODEL
+        value: llama3-70b-8192
       - key: SLACK_BOT_TOKEN
         sync: false
-      - key: SLACK_SIGNING_SECRET
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: llama3-70b-8192
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: openclaw-redis
-          property: connectionString
-      - key: SLACK_WEBHOOK_URL
-        sync: false
-      - key: OPENCLAW_API_KEY
-        sync: false
-      - key: WEB_PORT
-        value: "8080"
-      - key: PYTHONUNBUFFERED
-        value: "1"
-    healthCheckPath: /health
-    autoDeploy: false
-
-  # AI Worker Pool (processes tasks from queue)
-  - type: worker
-    name: openclaw-worker
-    runtime: docker
-    plan: starter
-    envVars:
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: llama3-70b-8192
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: openclaw-redis
-          property: connectionString
       - key: SLACK_WEBHOOK_URL
         sync: false
       - key: GITHUB_TOKEN
         sync: false
-      - key: RENDER_API_KEY
-        sync: false
-      - key: SERPER_API_KEY
-        sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
     autoDeploy: false
-
-  # Redis for memory + message bus
-  - type: redis
-    name: openclaw-redis
-    plan: starter
-    ipAllowList: []
