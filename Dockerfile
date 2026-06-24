@@ -1,7 +1,7 @@
 # OpenClaw Swarm — Production Docker Image
 # Better than Viktor: Self-hosted, you own your data
 
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -32,4 +32,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
 
 # Start the swarm kernel
-CMD ["python", "main.py"]
+CMD ["bash", "start.sh"]
