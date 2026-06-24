@@ -23,16 +23,29 @@ def _send(message: str):
     logger.info("[Slack] %s", message)
 
 
-def task_started(task_id: str, description: str):
+def task_started(task_id, description=None, needs_browser=False):
     """Notify that a task has started."""
-    _send("Task %s started: %s" % (task_id, description[:100]))
+    if isinstance(task_id, str):
+        desc = description if description else task_id
+        if isinstance(desc, list):
+            desc = str(desc)
+        _send("Task started: %s" % desc[:100])
+    else:
+        _send("Task started: %s" % str(task_id)[:100])
 
 
-def agent_complete(agent: str, result: str):
+def agent_complete(agent, task_desc=None, result=None, success=True):
     """Notify that an agent has completed."""
-    _send("Agent %s completed: %s" % (agent, result[:200]))
+    status = "✅" if success else "❌"
+    msg = "%s Agent %s completed" % (status, agent)
+    if result:
+        msg += ": %s" % str(result)[:200]
+    _send(msg)
 
 
-def task_complete(task_id: str, result: str):
+def task_complete(task_id, result=None):
     """Notify that a task has completed."""
-    _send("Task %s complete: %s" % (task_id, result[:200]))
+    msg = "Task %s complete" % task_id
+    if result:
+        msg += ": %s" % str(result)[:200]
+    _send(msg)
