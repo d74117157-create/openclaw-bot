@@ -146,3 +146,20 @@ def _chat(system_prompt: str, user_prompt: str) -> str:
             return loop.run_until_complete(call_groq(system_prompt, user_prompt))
     except Exception as e:
         return f"LLM error: {e}"
+
+
+def call_groq_sync(system_prompt: str, user_prompt: str) -> str:
+    """Synchronous wrapper for Groq API call."""
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're in an async context, use a new loop
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, call_groq(system_prompt, user_prompt))
+                return future.result()
+        return loop.run_until_complete(call_groq(system_prompt, user_prompt))
+    except RuntimeError:
+        # No event loop running
+        return asyncio.run(call_groq(system_prompt, user_prompt))

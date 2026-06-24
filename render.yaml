@@ -1,6 +1,6 @@
 services:
   - type: worker
-    name: openclaw-bot
+    name: openclaw-elite
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
@@ -15,6 +15,12 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: llama3-70b-8192
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: PRIMARY_LLM
+        value: groq
       - key: SLACK_BOT_TOKEN
         sync: false
       - key: SLACK_APP_TOKEN
@@ -25,10 +31,14 @@ services:
         value: openclaw-ops
       - key: GITHUB_TOKEN
         sync: false
+      - key: GITHUB_REPO
+        value: d74117157-create/openclaw-bot
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: MEMORY_DB
         value: /app/data/openclaw_memory.db
+      - key: MONITOR_URLS
+        sync: false
     disk:
       name: openclaw-data
       mountPath: /app/data
