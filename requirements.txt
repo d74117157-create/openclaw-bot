@@ -1,7 +1,20 @@
-# Core
+# OpenClaw Swarm — Better Than Viktor
+# Multi-platform AI agent system with specialized swarm
+
+# Core Frameworks
 discord.py>=2.3.0
+python-telegram-bot>=20.0
+slack-sdk>=3.21.0
 aiohttp>=3.8.0
+
+# Memory & Data
 redis>=5.0.0
 
-# Optional but recommended
+# Web Server (for API + health checks)
+# aiohttp already listed above
+
+# Environment
 python-dotenv>=1.0.0
+
+# Optional but recommended for production
+uvloop>=0.17.0; sys_platform != "win32"
