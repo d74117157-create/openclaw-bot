@@ -21,12 +21,10 @@ services:
         sync: false
       - key: SLACK_WEBHOOK_URL
         sync: false
+      - key: SLACK_CHANNEL
+        value: openclaw-ops
       - key: GITHUB_TOKEN
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
     autoDeploy: true
-
-# deploy-trigger: 2026-06-24T15:07:53.596757
-# deploy-trigger: 2026-06-24T15:24:38Z
-# deploy-test: 15:27:43
