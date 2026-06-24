@@ -1,8 +1,5 @@
 name: Deploy and Notify
 
-# =============================================================================
-# TRIGGERS
-# =============================================================================
 on:
   push:
     branches: [main]
@@ -45,7 +42,6 @@ jobs:
           echo "DEPLOY PLACEHOLDER"
           echo "=========================================="
           echo "Insert your deploy command here."
-          # curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
           exit 0
 
   notify:
@@ -87,9 +83,6 @@ Run: ${RUN_URL}"
             echo "color=${COLOR}"
           } >> "$GITHUB_OUTPUT"
 
-      # -----------------------------------------------------------------------
-      # SLACK
-      # -----------------------------------------------------------------------
       - name: Notify Slack
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -100,10 +93,7 @@ Run: ${RUN_URL}"
           curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "$SLACK_WEBHOOK"
         continue-on-error: true
 
-      # -----------------------------------------------------------------------
-      # DISCORD WEBHOOK
-      # -----------------------------------------------------------------------
-      - name: Notify Discord (Webhook)
+      - name: Notify Discord
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
@@ -114,10 +104,7 @@ Run: ${RUN_URL}"
           curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "$DISCORD_WEBHOOK"
         continue-on-error: true
 
-      # -----------------------------------------------------------------------
-      # TELEGRAM PRIMARY
-      # -----------------------------------------------------------------------
-      - name: Notify Telegram (Primary)
+      - name: Notify Telegram Primary
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -128,10 +115,7 @@ Run: ${RUN_URL}"
           curl -s -f -X POST -H "Content-type: application/json" --data "$PAYLOAD" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
         continue-on-error: true
 
-      # -----------------------------------------------------------------------
-      # TELEGRAM SECONDARY
-      # -----------------------------------------------------------------------
-      - name: Notify Telegram (Secondary)
+      - name: Notify Telegram Secondary
         env:
           TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
