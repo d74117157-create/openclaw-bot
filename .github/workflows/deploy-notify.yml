@@ -82,9 +82,11 @@ jobs:
           if [ "${{ needs.deploy.result }}" == "success" ]; then
             STATUS_EMOJI="✅"
             STATUS_TEXT="SUCCESS"
+            COLOR="3066993"
           else
             STATUS_EMOJI="❌"
             STATUS_TEXT="FAILURE"
+            COLOR="15158332"
           fi
 
           REPO="${{ github.repository }}"
@@ -105,8 +107,13 @@ Run: ${RUN_URL}"
             echo "$MESSAGE"
             echo "EOF"
             echo "status=${STATUS_TEXT}"
+            echo "color=${COLOR}"
           } >> "$GITHUB_OUTPUT"
 
+      # -----------------------------------------------------------------------
+      # SLACK
+      # Secret: SLACK_WEBHOOK  (Repository or Environment secret)
+      # -----------------------------------------------------------------------
       - name: Notify Slack
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -120,20 +127,29 @@ Run: ${RUN_URL}"
           curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "$SLACK_WEBHOOK"
         continue-on-error: true
 
-      - name: Notify Discord
+      # -----------------------------------------------------------------------
+      # DISCORD (Webhook)
+      # Secret: DISCORD_WEBHOOK  (Repository or Environment secret)
+      # -----------------------------------------------------------------------
+      - name: Notify Discord via Webhook
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
-            echo "DISCORD_WEBHOOK not set — skipping Discord notification"
+            echo "DISCORD_WEBHOOK not set — skipping Discord webhook notification"
             exit 0
           fi
           MESSAGE="${{ steps.payload.outputs.message }}"
-          PAYLOAD=$(jq -n --arg content "$MESSAGE" '{"content": $content}')
+          COLOR="${{ steps.payload.outputs.color }}"
+          PAYLOAD=$(jq -n             --arg content "$MESSAGE"             --argjson color "$COLOR"             '{"content": $content, "embeds": [{"color": $color, "description": $content}]}')
           curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "$DISCORD_WEBHOOK"
         continue-on-error: true
 
-      - name: Notify Telegram
+      # -----------------------------------------------------------------------
+      # TELEGRAM (Primary Bot)
+      # Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+      # -----------------------------------------------------------------------
+      - name: Notify Telegram (Primary)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -145,4 +161,22 @@ Run: ${RUN_URL}"
           MESSAGE="${{ steps.payload.outputs.message }}"
           PAYLOAD=$(jq -n             --arg chat_id "$TELEGRAM_CHAT_ID"             --arg text "$MESSAGE"             '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
           curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+        continue-on-error: true
+
+      # -----------------------------------------------------------------------
+      # TELEGRAM (Secondary Bot - Backup)
+      # Secrets: TELEGRAM_BOT_TOKEN_2, TELEGRAM_CHAT_ID
+      # -----------------------------------------------------------------------
+      - name: Notify Telegram (Secondary)
+        env:
+          TELEGRAM_BOT_TOKEN_2: ${{ secrets.TELEGRAM_BOT_TOKEN_2 }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN_2" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN_2 or TELEGRAM_CHAT_ID not set — skipping secondary Telegram notification"
+            exit 0
+          fi
+          MESSAGE="${{ steps.payload.outputs.message }}"
+          PAYLOAD=$(jq -n             --arg chat_id "$TELEGRAM_CHAT_ID"             --arg text "$MESSAGE"             '{"chat_id": $chat_id, "text": $text, "parse_mode": "HTML"}')
+          curl -s -f -X POST -H "Content-type: application/json"             --data "$PAYLOAD"             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN_2}/sendMessage"
         continue-on-error: true
