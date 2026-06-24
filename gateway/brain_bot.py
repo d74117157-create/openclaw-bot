@@ -2,6 +2,7 @@
 OpenClaw - gateway/brain_bot.py
 Discord gateway: listens in #brain channel, runs agent swarm via slash commands.
 REPAIRED: Fixed indentation, async safety, logging, command defer.
+FIXED: process_task_async / orchestrate_task_async → sync wrappers with asyncio
 """
 import os
 import asyncio
@@ -14,7 +15,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 
 from memory import init_db, save_task, update_task, get_stats, save_decision
-from worker.ai_worker import process_task_async, orchestrate_task_async, AGENT_PERSONAS
+from worker.ai_worker import process_task, orchestrate_task, AGENT_PERSONAS
 from shared.logging import setup_logging, get_logger
 
 load_dotenv()
@@ -46,8 +47,10 @@ async def _run_agent(agent: str, task_desc: str) -> str:
     """Run an agent on a task with timeout protection."""
     tid = save_task(task_desc, agent)
     try:
+        # Run sync process_task in executor to avoid blocking
+        loop = asyncio.get_running_loop()
         result = await asyncio.wait_for(
-            process_task_async(task_desc, agent),
+            loop.run_in_executor(None, process_task, task_desc, agent),
             timeout=25.0
         )
         update_task(tid, result, "done")
@@ -68,8 +71,9 @@ async def _run_agent(agent: str, task_desc: str) -> str:
 async def _orchestrate(task_desc: str) -> list:
     """Orchestrate a task into subtasks."""
     try:
+        loop = asyncio.get_running_loop()
         raw = await asyncio.wait_for(
-            orchestrate_task_async(task_desc),
+            loop.run_in_executor(None, orchestrate_task, task_desc),
             timeout=10.0
         )
         plan = json.loads(raw)
