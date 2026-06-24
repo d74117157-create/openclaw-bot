@@ -20,10 +20,11 @@ echo "[OpenClaw]   GROQ_API_KEY: ${GROQ_API_KEY:+SET}"
 echo "[OpenClaw]   SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:+SET}"
 echo "[OpenClaw]   SLACK_CHANNEL: ${SLACK_CHANNEL:-NOT SET}"
 
-# Test imports first
+# Test imports first (run from /app so imports work)
 echo "[OpenClaw] Testing imports..."
 python3 test_imports.py
 
-# Start Discord bot with background heartbeat for Render
+# Start Discord bot from /app directory so Python path is correct
 echo "[OpenClaw] Starting bot..."
-exec python3 gateway/bot.py
+# Use python -m to run as module, ensuring /app is in sys.path
+exec python3 -m gateway.bot
