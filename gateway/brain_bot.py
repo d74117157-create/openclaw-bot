@@ -244,6 +244,19 @@ async def cmd_swarm(interaction: discord.Interaction, task: str):
 
 # -- Entry --------------------------------------------------------------------
 
+
+
+# ── Brain singleton for Discord cog ────────────────────────────────────────
+
+_brain_instance = None
+
+def get_brain():
+    """Return the brain bot instance (for Discord cog integration)."""
+    global _brain_instance
+    if _brain_instance is None:
+        _brain_instance = client
+    return _brain_instance
+
 if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("OpenClaw Brain Bot Starting")
