@@ -186,7 +186,7 @@ async def cmd_agents(interaction: discord.Interaction):
     try:
         await interaction.response.defer(thinking=True)
         lines = [f"**{k}** — {v[:65]}…" for k, v in AGENT_PERSONAS.items()]
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=_embed("🤖 OpenClaw Agents", "\n".join(lines))
         )
     except Exception as e:
@@ -206,7 +206,7 @@ async def cmd_status(interaction: discord.Interaction):
             f"**Decisions:** {stats.get('decisions', 0)}",
             f"**Deployments:** {stats.get('deployments', 0)}",
         ]
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=_embed("📊 OpenClaw Status", "\n".join(lines))
         )
     except Exception as e:
