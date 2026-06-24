@@ -1,166 +1,38 @@
-"""Slack Reporter — Optional webhook notifications for task events.
+#!/usr/bin/env python3
+"""Slack Reporter — Optional webhook notifications.
 
-No-ops gracefully if SLACK_WEBHOHOOK_URL is not set.
-Wired into ai_worker.py to post on task completion/failure.
+Exports:
+  - task_started: Notify when task starts
+  - agent_complete: Notify when agent finishes
+  - task_complete: Notify when task completes
 """
 
 import os
-import json
 import logging
 from datetime import datetime
-
-import aiohttp
 
 logger = logging.getLogger("slack_reporter")
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 
-class SlackReporter:
-    """Sends Slack notifications via incoming webhook."""
+def _send(message: str):
+    """Send message to Slack (placeholder — implement with requests/aiohttp if needed)."""
+    if not SLACK_WEBHOOK_URL:
+        return
+    logger.info("[Slack] %s", message)
 
-    def __init__(self):
-        self.webhook_url = SLACK_WEBHOOK_URL
-        self.enabled = bool(self.webhook_url)
-        if self.enabled:
-            logger.info("Slack reporter enabled")
-        else:
-            logger.info("Slack reporter disabled (SLACK_WEBHOOK_URL not set)")
 
-    async def _send(self, payload: dict) -> bool:
-        """Send payload to Slack webhook."""
-        if not self.enabled:
-            return False
+def task_started(task_id: str, description: str):
+    """Notify that a task has started."""
+    _send("Task %s started: %s" % (task_id, description[:100]))
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.webhook_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status == 200:
-                        return True
-                    else:
-                        text = await resp.text()
-                        logger.warning("Slack webhook returned %d: %s", resp.status, text[:200])
-                        return False
-        except Exception as e:
-            logger.warning("Slack notification failed: %s", e)
-            return False
 
-    async def notify_task_complete(
-        self,
-        task_id: str,
-        username: str,
-        question: str,
-        answer: str,
-    ) -> bool:
-        """Notify Slack that a task completed successfully."""
-        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        payload = {
-            "text": "OpenClaw Task Completed",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "OpenClaw Task Completed",
-                        "emoji": True,
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {"type": "mrkdwn", "text": "*Task ID:*\n`%s`" % task_id},
-                        {"type": "mrkdwn", "text": "*User:*\n%s" % username},
-                    ]
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "*Question:*\n>%s" % question[:500],
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "*Answer:*\n>%s" % answer[:1000],
-                    }
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {"type": "mrkdwn", "text": " %s" % ts}
-                    ]
-                },
-            ]
-        }
-        return await self._send(payload)
+def agent_complete(agent: str, result: str):
+    """Notify that an agent has completed."""
+    _send("Agent %s completed: %s" % (agent, result[:200]))
 
-    async def notify_task_failed(
-        self,
-        task_id: str,
-        username: str,
-        question: str,
-        error: str,
-    ) -> bool:
-        """Notify Slack that a task failed."""
-        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        payload = {
-            "text": "OpenClaw Task Failed",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "OpenClaw Task Failed",
-                        "emoji": True,
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {"type": "mrkdwn", "text": "*Task ID:*\n`%s`" % task_id},
-                        {"type": "mrkdwn", "text": "*User:*\n%s" % username},
-                    ]
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "*Question:*\n>%s" % question[:500],
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "*Error:*\n`%s`" % error[:1000],
-                    }
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {"type": "mrkdwn", "text": " %s" % ts}
-                    ]
-                },
-            ]
-        }
-        return await self._send(payload)
 
-    async def notify_startup(self, agent_id: str) -> bool:
-        """Notify Slack that a worker started."""
-        payload = {
-            "text": "OpenClaw Worker Started: %s" % agent_id,
-        }
-        return await self._send(payload)
-
-    async def notify_shutdown(self, agent_id: str) -> bool:
-        """Notify Slack that a worker shut down."""
-        payload = {
-            "text": "OpenClaw Worker Shut Down: %s" % agent_id,
-        }
-        return await self._send(payload)
+def task_complete(task_id: str, result: str):
+    """Notify that a task has completed."""
+    _send("Task %s complete: %s" % (task_id, result[:200]))
