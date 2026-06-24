@@ -1,106 +1,151 @@
+#!/usr/bin/env python3
+"""Worker Bot — Consumes tasks from Redis and delegates to agents
+
+This runs as a separate service (openclaw-worker on Render)
+and processes tasks asynchronously.
+"""
+
 import os
-import discord
-from discord import app_commands
-from discord.ext import commands
-from groq import Groq
+import sys
+import asyncio
+import signal
+import logging
+from datetime import datetime
 
-# ============================
-#  CONFIG
-# ============================
+from memory import get_redis, pop_task, complete_task, register_agent, heartbeat_agent
+from shared.message_bus import MessageBus
 
-TOKEN = os.environ.get("DISCORD_WORKER_BOT_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# Import all agents
+from worker.agents.orchestrator import OrchestratorAgent
+from worker.agents.coder import CoderAgent
+from worker.agents.researcher import ResearcherAgent
+from worker.agents.ops import OpsAgent
+from worker.agents.growth import GrowthAgent
+from worker.agents.qa import QAAgent
 
-# Change this per worker bot:
-# writer, researcher, designer, automation, etc.
-ROLE_NAME = os.environ.get("WORKER_ROLE", "writer")
+from worker.slack_reporter import SlackReporter
 
-intents = discord.Intents.default()
-intents.message_content = False
-
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-groq_client = Groq(api_key=GROQ_API_KEY)
-
-# ============================
-#  SYSTEM PROMPT
-# ============================
-
-SYSTEM_PROMPT = (
-    f"You are an OpenClaw worker bot with role '{ROLE_NAME}'. "
-    "You receive execution tasks from a central Planner. "
-    "You do NOT plan, you EXECUTE. "
-    "You take 'action' and 'payload' and produce the best possible result. "
-    "Be concrete, useful, and production-ready. "
-    "Use Discord-friendly formatting (markdown, code blocks, etc)."
+# --- Logging ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
+logger = logging.getLogger("worker_bot")
 
-# ============================
-#  LLM EXECUTION
-# ============================
+AGENT_ID = os.getenv("HOSTNAME", f"worker_{os.getpid()}")
 
-def run_worker_llm(action: str, payload: str) -> str:
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                f"Action: {action}\n\n"
-                f"Payload:\n{payload}\n\n"
-                "Execute this task fully and return the final result."
-            ),
-        },
-    ]
 
-    resp = groq_client.chat.completions.create(
-        model="llama3-70b-8192",
-        messages=messages,
-        max_tokens=1200,
-    )
+class WorkerBot:
+    """Processes tasks from the queue using the agent swarm."""
 
-    return resp.choices[0].message.content
+    def __init__(self):
+        self.bus = MessageBus()
+        self.redis = get_redis()
+        self.slack = SlackReporter()
+        self.running = False
 
-# ============================
-#  DISCORD EVENTS
-# ============================
+        # Initialize agents
+        self.agents = {
+            "orchestrator": OrchestratorAgent(self.bus),
+            "coder": CoderAgent(self.bus),
+            "researcher": ResearcherAgent(self.bus),
+            "ops": OpsAgent(self.bus),
+            "growth": GrowthAgent(self.bus),
+            "qa": QAAgent(self.bus),
+        }
 
-@bot.event
-async def on_ready():
-    try:
-        await bot.tree.sync()
-        print(f"[Worker:{ROLE_NAME}] Slash commands synced")
-    except Exception as e:
-        print(f"[Worker:{ROLE_NAME}] Error syncing commands: {e}")
+        logger.info("Worker initialized with %d agents", len(self.agents))
 
-    print(f"[Worker:{ROLE_NAME}] {bot.user} online and ready to execute tasks.")
+    async def process_task(self, task: dict):
+        """Process a single task."""
+        task_id = task.get("id", "unknown")
+        agent_name = task.get("agent", "researcher")
+        context = task.get("context", {})
 
-# ============================
-#  /execute COMMAND
-# ============================
+        platform = context.get("platform", "unknown")
+        username = context.get("username", "unknown")
+        message = context.get("message", "")
+        channel_id = context.get("channel_id", "")
 
-@bot.tree.command(name="execute", description="Execute a remote swarm task.")
-@app_commands.describe(
-    action="The action name (e.g., create_product_outline, write_email_sequence)",
-    payload="The payload or instructions for this action",
-)
-async def execute(interaction: discord.Interaction, action: str, payload: str):
-    await interaction.response.defer(thinking=True)
+        logger.info("Processing task %s with agent %s", task_id, agent_name)
 
-    try:
-        result = run_worker_llm(action, payload)
-    except Exception as e:
-        result = f"Error while executing task: {e}"
+        try:
+            # Get the agent
+            agent = self.agents.get(agent_name)
+            if not agent:
+                logger.error("Agent %s not found, defaulting to researcher", agent_name)
+                agent = self.agents["researcher"]
 
-    await interaction.followup.send(result)
+            # Process
+            result = await agent.process(context)
 
-# ============================
-#  RUN BOT
-# ============================
+            # Mark complete
+            complete_task(task_id, result, success=True)
+
+            # Queue for delivery
+            self._queue_response(platform, channel_id, result, task_id)
+
+            # Slack notification
+            await self.slack.notify_task_complete(
+                task_id=task_id,
+                username=username,
+                question=message,
+                answer=result[:500],
+            )
+
+            logger.info("Task %s completed successfully", task_id)
+
+        except Exception as e:
+            logger.exception("Task %s failed", task_id)
+            error_msg = "Error: %s" % str(e)[:500]
+            complete_task(task_id, error_msg, success=False)
+            self._queue_response(platform, channel_id, error_msg, task_id)
+
+            await self.slack.notify_task_failed(
+                task_id=task_id,
+                username=username,
+                question=message,
+                error=str(e)[:500],
+            )
+
+    def _queue_response(self, platform: str, channel_id: str, content: str, task_id: str):
+        """Queue response for the gateway to deliver."""
+        self.redis.lpush("openclaw:responses:%s:%s" % (platform, channel_id), json.dumps({
+            "task_id": task_id,
+            "content": content,
+            "timestamp": datetime.utcnow().isoformat(),
+        }))
+
+    async def run(self):
+        """Main worker loop."""
+        logger.info("Worker %s starting...", AGENT_ID)
+        register_agent(AGENT_ID, {"status": "active", "type": "worker"})
+        self.running = True
+
+        while self.running:
+            try:
+                task = pop_task()
+                if task is None:
+                    await asyncio.sleep(1)
+                    continue
+
+                await self.process_task(task)
+
+            except Exception as e:
+                logger.exception("Worker loop error")
+                await asyncio.sleep(5)
+
+
+async def main():
+    worker = WorkerBot()
+
+    # Signal handling
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda: setattr(worker, 'running', False))
+
+    await worker.run()
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("ERROR: DISCORD_WORKER_BOT_TOKEN not set.")
-    elif not GROQ_API_KEY:
-        print("ERROR: GROQ_API_KEY not set.")
-    else:
-        bot.run(TOKEN)
+    asyncio.run(main())
