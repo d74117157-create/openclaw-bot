@@ -1,0 +1,35 @@
+# OpenClaw Bot — Render Background Worker Configuration
+# Discord-only bot (no HTTP traffic)
+
+services:
+  - type: worker
+    name: openclaw-bot
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false  # Set manually in Render dashboard
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: OWNER_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama3-70b-8192
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: openclaw-redis
+          property: connectionString
+      - key: SLACK_WEBHOOK_URL
+        sync: false  # Optional — bot works without it
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    healthCheckPath: null  # Background worker — no HTTP health check
+    autoDeploy: false  # Manual deploy recommended for bot stability
+
+  - type: redis
+    name: openclaw-redis
+    plan: free
+    ipAllowList: []  # Allow from all (Render internal network)
