@@ -1,53 +1,94 @@
+#!/usr/bin/env python3
+"""Ops Agent — Infrastructure, CI/CD, monitoring
+
+SUPERIOR TO VIKTOR: Viktor can't manage infrastructure.
+OpenClaw Ops handles servers, deployments, and monitoring.
+
+Capabilities:
+- Server provisioning and configuration
+- CI/CD pipeline management
+- Docker container management
+- Monitoring and alerting setup
+- Log aggregation
+- Security auditing
 """
-OpenClaw — worker/agents/ops.py
-OPS AGENT: Railway deployments, Docker, scaling, rollbacks, monitoring.
-"""
-from worker.ai_worker import process_task, _chat
 
-SYSTEM = (
-    "You are the OPS AGENT of OpenClaw. You manage Railway deployments, Docker images, "
-    "scaling strategies, rollback procedures, and uptime monitoring. "
-    "Rules: prioritize uptime, validate before every release, maintain rollback capability. "
-    "Always return:\n"
-    "DEPLOYMENT PLAN: <step-by-step>\n"
-    "ENV VARS REQUIRED: <list — never reveal values>\n"
-    "HEALTH CHECKS: <commands to verify system is live>\n"
-    "ROLLBACK PROCEDURE: <exact commands>\n"
-    "MONITORING: <what to watch>"
-)
+import os
+import logging
+
+from worker.agents.orchestrator import BaseAgent
+from shared.message_bus import MessageBus
+
+logger = logging.getLogger("agent.ops")
 
 
-def deploy_plan(service: str, env: str = "production") -> str:
-    return _chat(SYSTEM, f"Create full Railway deployment plan for: {service} (env: {env})")
+class OpsAgent(BaseAgent):
+    """Specialist agent for operations tasks."""
 
+    def __init__(self, bus: MessageBus):
+        super().__init__(bus, "ops", "devops_engineer")
+        self.capabilities = [
+            "infrastructure", "ci_cd", "docker", "monitoring",
+            "security", "logging", "backup", "scaling"
+        ]
 
-def rollback_plan(service: str, version: str = "previous") -> str:
-    return _chat(SYSTEM, f"Write rollback procedure for: {service} to version: {version}")
+    async def process(self, context: dict) -> str:
+        """Process ops tasks."""
+        message = context.get("message", "")
+        msg_lower = message.lower()
 
+        if "docker" in msg_lower or "container" in msg_lower:
+            return await self._docker_task(message)
+        elif "monitor" in msg_lower or "alert" in msg_lower:
+            return await self._monitoring_task(message)
+        elif "security" in msg_lower or "audit" in msg_lower:
+            return await self._security_audit(message)
+        elif "deploy" in msg_lower or "server" in msg_lower:
+            return await self._deploy_infrastructure(message)
+        else:
+            return await self._general_ops(message)
 
-def scale_plan(service: str, direction: str = "up", reason: str = "") -> str:
-    return _chat(SYSTEM, f"Design scaling plan for {service} ({direction}). Reason: {reason}")
+    async def _docker_task(self, prompt: str) -> str:
+        """Generate Docker configurations."""
+        system = """You are a Docker expert. Generate production-ready Docker configurations:
+- Multi-stage builds for optimization
+- Security best practices (non-root user, minimal base images)
+- Health checks
+- Proper logging
+- Resource limits"""
+        return await self._call_llm(system, prompt)
 
+    async def _monitoring_task(self, prompt: str) -> str:
+        """Set up monitoring."""
+        system = """You are a monitoring expert. Generate configurations for:
+- Prometheus metrics
+- Grafana dashboards
+- AlertManager rules
+- Uptime checks
+- Log aggregation (Loki/ELK)"""
+        return await self._call_llm(system, prompt)
 
-def monitoring_plan(service: str) -> str:
-    return _chat(
-        SYSTEM,
-        f"Design a monitoring plan for {service}: health checks, alerts, "
-        f"Slack notifications, Railway metrics, error rate thresholds."
-    )
+    async def _security_audit(self, prompt: str) -> str:
+        """Perform security audit."""
+        system = """You are a security engineer. Audit the system for:
+1. Vulnerabilities (OWASP Top 10)
+2. Misconfigurations
+3. Access control issues
+4. Data exposure risks
+5. Compliance gaps (GDPR, SOC2)"""
+        return await self._call_llm(system, prompt)
 
+    async def _deploy_infrastructure(self, prompt: str) -> str:
+        """Generate infrastructure code."""
+        system = """You are a cloud infrastructure engineer. Generate Terraform/Pulumi/CloudFormation code for:
+- Scalable architecture
+- High availability
+- Cost optimization
+- Security groups and IAM
+- Auto-scaling policies"""
+        return await self._call_llm(system, prompt)
 
-def docker_plan(service: str) -> str:
-    return _chat(SYSTEM, f"Create a production Dockerfile and docker-compose.yml for: {service}")
-
-
-def incident_response(incident: str) -> str:
-    return _chat(
-        SYSTEM,
-        f"Write an incident response runbook for: {incident}\n"
-        f"Include: detection, containment, resolution, post-mortem template."
-    )
-
-
-def run(task: str) -> str:
-    return process_task(task, "ops")
+    async def _general_ops(self, prompt: str) -> str:
+        """General ops advice."""
+        system = "You are a senior DevOps engineer. Provide expert advice on infrastructure, CI/CD, and operations."
+        return await self._call_llm(system, prompt)
