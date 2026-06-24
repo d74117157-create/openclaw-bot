@@ -1,53 +1,100 @@
+#!/usr/bin/env python3
+"""Growth Agent — Marketing, SEO, social media, analytics
+
+SUPERIOR TO VIKTOR: Viktor doesn't do marketing.
+OpenClaw Growth handles your entire growth stack.
+
+Capabilities:
+- SEO optimization and keyword research
+- Social media content generation
+- Email marketing campaigns
+- Analytics and conversion tracking
+- A/B test design
+- Competitor marketing analysis
 """
-OpenClaw — worker/agents/growth.py
-GROWTH AGENT: Automation funnels, Discord/Slack engagement, ROI-driven workflows.
-"""
-from worker.ai_worker import process_task, _chat
 
-SYSTEM = (
-    "You are the GROWTH AGENT of OpenClaw. You design automation funnels, engagement systems, "
-    "Discord/Slack community workflows, and ROI-driven automations. "
-    "Rules: prioritize measurable ROI, automate repetitive work, design for scale. "
-    "Always return:\n"
-    "GROWTH STRATEGY: <high-level approach>\n"
-    "AUTOMATION FLOWS: <step-by-step automation sequences>\n"
-    "DISCORD IMPLEMENTATION: <specific Discord features/bots to use>\n"
-    "SLACK IMPLEMENTATION: <specific Slack features/workflows>\n"
-    "KPIs TO TRACK: <measurable success metrics>\n"
-    "IMPLEMENTATION CHECKLIST: <ordered action items>"
-)
+import os
+import logging
+
+from worker.agents.orchestrator import BaseAgent
+from shared.message_bus import MessageBus
+
+logger = logging.getLogger("agent.growth")
 
 
-def community_growth_plan(community_type: str, goal: str) -> str:
-    return _chat(SYSTEM, f"Design a growth plan for a {community_type} community. Goal: {goal}")
+class GrowthAgent(BaseAgent):
+    """Specialist agent for growth/marketing tasks."""
 
+    def __init__(self, bus: MessageBus):
+        super().__init__(bus, "growth", "growth_marketer")
+        self.capabilities = [
+            "seo", "content_marketing", "social_media",
+            "email_marketing", "analytics", "ab_testing",
+            "conversion_optimization", "competitor_analysis"
+        ]
 
-def onboarding_flow(platform: str, user_type: str) -> str:
-    return _chat(SYSTEM, f"Design a {platform} onboarding automation flow for: {user_type}")
+    async def process(self, context: dict) -> str:
+        """Process growth tasks."""
+        message = context.get("message", "")
+        msg_lower = message.lower()
 
+        if "seo" in msg_lower or "keyword" in msg_lower:
+            return await self._seo_task(message)
+        elif "social" in msg_lower or "twitter" in msg_lower or "linkedin" in msg_lower:
+            return await self._social_media(message)
+        elif "email" in msg_lower or "newsletter" in msg_lower:
+            return await self._email_marketing(message)
+        elif "content" in msg_lower or "blog" in msg_lower or "article" in msg_lower:
+            return await self._content_creation(message)
+        else:
+            return await self._growth_strategy(message)
 
-def engagement_system(platform: str, metrics: str) -> str:
-    return _chat(SYSTEM, f"Build an engagement system for {platform}. Track: {metrics}")
+    async def _seo_task(self, prompt: str) -> str:
+        """SEO optimization."""
+        system = """You are an SEO expert. Provide:
+1. Keyword research and prioritization
+2. On-page optimization recommendations
+3. Technical SEO audit items
+4. Content gap analysis
+5. Backlink strategy"""
+        return await self._call_llm(system, prompt)
 
+    async def _social_media(self, prompt: str) -> str:
+        """Generate social media content."""
+        system = """You are a social media strategist. Generate:
+1. Platform-specific posts (Twitter/X, LinkedIn, Instagram)
+2. Content calendar suggestions
+3. Hashtag research
+4. Engagement hooks
+5. Call-to-action optimization"""
+        return await self._call_llm(system, prompt)
 
-def retention_strategy(pain_points: str) -> str:
-    return _chat(SYSTEM, f"Design a user retention strategy for these pain points: {pain_points}")
+    async def _email_marketing(self, prompt: str) -> str:
+        """Email marketing campaigns."""
+        system = """You are an email marketing expert. Generate:
+1. Subject line variations (A/B test)
+2. Email body copy
+3. Segmentation strategy
+4. Send time optimization
+5. Follow-up sequences"""
+        return await self._call_llm(system, prompt)
 
+    async def _content_creation(self, prompt: str) -> str:
+        """Create marketing content."""
+        system = """You are a content strategist. Create:
+1. Blog post outlines
+2. Article drafts
+3. Landing page copy
+4. Case study frameworks
+5. White paper structures"""
+        return await self._call_llm(system, prompt)
 
-def discord_server_architecture(purpose: str) -> str:
-    return _chat(
-        SYSTEM,
-        f"Design a complete Discord server architecture for: {purpose}\n"
-        f"Include: channels, roles, bots, automations, welcome flow, moderation."
-    )
-
-
-def slack_workspace_automation(team_size: str, workflow: str) -> str:
-    return _chat(
-        SYSTEM,
-        f"Design Slack workspace automations for a {team_size} team. Workflow: {workflow}"
-    )
-
-
-def run(task: str) -> str:
-    return process_task(task, "growth")
+    async def _growth_strategy(self, prompt: str) -> str:
+        """Overall growth strategy."""
+        system = """You are a growth hacker. Design a comprehensive growth strategy:
+1. Acquisition channels
+2. Activation tactics
+3. Retention loops
+4. Referral mechanisms
+5. Revenue optimization"""
+        return await self._call_llm(system, prompt)
