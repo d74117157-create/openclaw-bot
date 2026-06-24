@@ -3,6 +3,7 @@ services:
     name: openclaw-bot
     runtime: docker
     plan: starter
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DISCORD_TOKEN
         sync: false
@@ -16,10 +17,12 @@ services:
         value: llama3-70b-8192
       - key: SLACK_BOT_TOKEN
         sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
       - key: SLACK_WEBHOOK_URL
         sync: false
       - key: GITHUB_TOKEN
         sync: false
       - key: PYTHONUNBUFFERED
         value: "1"
-    autoDeploy: false
+    autoDeploy: true
