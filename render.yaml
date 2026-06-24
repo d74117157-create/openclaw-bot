@@ -26,3 +26,5 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
     autoDeploy: true
+
+# deploy-trigger: 2026-06-24T15:07:53.596757
