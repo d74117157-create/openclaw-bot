@@ -1,9 +1,18 @@
 """
 OpenClaw - gateway/bot.py
 Extended Discord bot with task management and deployment slash commands.
-FIXED: Complete indentation, async safety, proper error handling.
+FIXED: Complete indentation, async safety, proper error handling, sys.path fix.
 """
+import sys
 import os
+
+# Fix: Add parent directory to path so 'memory' and 'worker' packages are found
+# when running from /app/gateway/bot.py
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(SCRIPT_DIR)
+if PARENT_DIR not in sys.path:
+    sys.path.insert(0, PARENT_DIR)
+
 import asyncio
 import traceback
 import json
@@ -22,7 +31,7 @@ SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL", "openclaw-ops")
 
 if not DISCORD_TOKEN:
-    raise ValueError("❌ DISCORD_TOKEN not set in .env")
+    raise ValueError("❌ DISCORD_TOKEN not set in environment")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -86,11 +95,11 @@ async def cmd_create_task(interaction: discord.Interaction, task: str):
     try:
         # Notify Slack that task started
         task_started(task, [], needs_browser=False)
-        
+
         # Orchestrate the task
         loop = asyncio.get_event_loop()
         plan_raw = await loop.run_in_executor(None, lambda: orchestrate_task(task))
-        
+
         try:
             plan = json.loads(plan_raw)
         except json.JSONDecodeError:
@@ -218,6 +227,7 @@ async def cmd_status(interaction: discord.Interaction):
 if __name__ == "__main__":
     print("=" * 60)
     print("OpenClaw Discord Bot Starting")
+    print("Python path:", sys.path)
     print("=" * 60)
     try:
         bot.run(DISCORD_TOKEN)
