@@ -1,193 +1,166 @@
+"""Slack Reporter — Optional webhook notifications for task events.
+
+No-ops gracefully if SLACK_WEBHOHOOK_URL is not set.
+Wired into ai_worker.py to post on task completion/failure.
 """
-OpenClaw — worker/slack_reporter.py
-Dedicated Slack reporter. Posts every agent update, task lifecycle,
-QA results, and GitHub events to the ops channel in real time.
-"""
-import os, time
-from dotenv import load_dotenv
 
-load_dotenv()
+import os
+import json
+import logging
+from datetime import datetime
 
-SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
-SLACK_CHANNEL   = os.environ.get("SLACK_CHANNEL",   "openclaw-ops")
+import aiohttp
 
-AGENT_EMOJI = {
-    "orchestrator": "brain", "coder": "coder", "reviewer": "reviewer",
-    "qa": "qa", "ops": "ops", "research": "research",
-    "growth": "growth", "memory": "memory", "github": "github", "browser": "browser",
-}
+logger = logging.getLogger("slack_reporter")
+
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 
 
-def _client():
-    if not SLACK_BOT_TOKEN:
-        return None
-    try:
-        from slack_sdk import WebClient
-        return WebClient(token=SLACK_BOT_TOKEN)
-    except Exception:
-        return None
+class SlackReporter:
+    """Sends Slack notifications via incoming webhook."""
 
+    def __init__(self):
+        self.webhook_url = SLACK_WEBHOOK_URL
+        self.enabled = bool(self.webhook_url)
+        if self.enabled:
+            logger.info("Slack reporter enabled")
+        else:
+            logger.info("Slack reporter disabled (SLACK_WEBHOOK_URL not set)")
 
-def _ts() -> str:
-    return time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    async def _send(self, payload: dict) -> bool:
+        """Send payload to Slack webhook."""
+        if not self.enabled:
+            return False
 
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.webhook_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status == 200:
+                        return True
+                    else:
+                        text = await resp.text()
+                        logger.warning("Slack webhook returned %d: %s", resp.status, text[:200])
+                        return False
+        except Exception as e:
+            logger.warning("Slack notification failed: %s", e)
+            return False
 
-def task_started(task: str, plan: list, needs_browser: bool = False):
-    slack = _client()
-    if not slack:
-        return
-    agent_list = " -> ".join(
-        f"`{p.get('agent','')}` "
-        for p in plan
-    )
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            blocks=[
-                {"type": "header",
-                 "text": {"type": "plain_text", "text": "OpenClaw -- New Task Started"}},
-                {"type": "section",
-                 "text": {"type": "mrkdwn", "text": f"*Task:* {task[:200]}"}},
-                {"type": "section",
-                 "text": {"type": "mrkdwn", "text": f"*Plan:* {agent_list}"}},
-                {"type": "section",
-                 "text": {"type": "mrkdwn",
-                          "text": f"*Browser:* {'Yes' if needs_browser else 'No'} | *Agents:* {len(plan)}"}},
-                {"type": "context",
-                 "elements": [{"type": "mrkdwn", "text": f"{_ts()}"}]},
+    async def notify_task_complete(
+        self,
+        task_id: str,
+        username: str,
+        question: str,
+        answer: str,
+    ) -> bool:
+        """Notify Slack that a task completed successfully."""
+        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        payload = {
+            "text": "OpenClaw Task Completed",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "OpenClaw Task Completed",
+                        "emoji": True,
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {"type": "mrkdwn", "text": "*Task ID:*\n`%s`" % task_id},
+                        {"type": "mrkdwn", "text": "*User:*\n%s" % username},
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Question:*\n>%s" % question[:500],
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Answer:*\n>%s" % answer[:1000],
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": " %s" % ts}
+                    ]
+                },
             ]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] task_started: {e}")
+        }
+        return await self._send(payload)
 
-
-def agent_complete(agent: str, task_desc: str, result: str, success: bool = True):
-    slack = _client()
-    if not slack:
-        return
-    emoji  = AGENT_EMOJI.get(agent, "bot")
-    status = "Complete" if success else "Failed"
-    preview = result[:1500]
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            blocks=[
-                {"type": "section",
-                 "text": {"type": "mrkdwn",
-                          "text": f"[{agent.upper()}] {status} - {task_desc[:100]}"}},
-                {"type": "section",
-                 "text": {"type": "mrkdwn", "text": f"```{preview}```"}},
-                {"type": "context",
-                 "elements": [{"type": "mrkdwn", "text": f"{_ts()}"}]},
+    async def notify_task_failed(
+        self,
+        task_id: str,
+        username: str,
+        question: str,
+        error: str,
+    ) -> bool:
+        """Notify Slack that a task failed."""
+        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        payload = {
+            "text": "OpenClaw Task Failed",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "OpenClaw Task Failed",
+                        "emoji": True,
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {"type": "mrkdwn", "text": "*Task ID:*\n`%s`" % task_id},
+                        {"type": "mrkdwn", "text": "*User:*\n%s" % username},
+                    ]
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Question:*\n>%s" % question[:500],
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Error:*\n`%s`" % error[:1000],
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": " %s" % ts}
+                    ]
+                },
             ]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] agent_complete: {e}")
+        }
+        return await self._send(payload)
 
+    async def notify_startup(self, agent_id: str) -> bool:
+        """Notify Slack that a worker started."""
+        payload = {
+            "text": "OpenClaw Worker Started: %s" % agent_id,
+        }
+        return await self._send(payload)
 
-def task_complete(task: str, qa_result: dict, github_url: str = ""):
-    slack = _client()
-    if not slack:
-        return
-    verdict = "PASSED" if qa_result.get("passed") else "FAILED"
-    score   = qa_result.get("score", 0)
-    try:
-        blocks = [
-            {"type": "header",
-             "text": {"type": "plain_text", "text": "OpenClaw -- Task Complete"}},
-            {"type": "section",
-             "text": {"type": "mrkdwn",
-                      "text": f"*Task:* {task[:150]}\n*QA:* {verdict} ({score}/100)"}},
-            {"type": "section",
-             "text": {"type": "mrkdwn",
-                      "text": f"*Summary:* {qa_result.get('summary', '')[:200]}"}},
-        ]
-        if github_url:
-            blocks.append({"type": "section",
-                           "text": {"type": "mrkdwn", "text": f"*GitHub Issue:* {github_url}"}})
-        blocks.append({"type": "divider"})
-        blocks.append({"type": "context",
-                       "elements": [{"type": "mrkdwn", "text": f"OpenClaw Swarm OS | {_ts()}"}]})
-        slack.chat_postMessage(channel=SLACK_CHANNEL, blocks=blocks)
-    except Exception as e:
-        print(f"[SlackReporter] task_complete: {e}")
-
-
-def deployment_alert(service: str, status: str, env: str = "production", url: str = ""):
-    slack = _client()
-    if not slack:
-        return
-    icon  = "OK" if status.lower() in ("success", "deployed", "live") else "FAIL"
-    color = "good" if icon == "OK" else "danger"
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            attachments=[{
-                "color": color,
-                "title": f"Deploy: {service}",
-                "text":  f"Status: {status} | Env: {env}" + (f"\n{url}" if url else ""),
-                "footer": "OpenClaw OPS",
-                "ts":    int(time.time()),
-            }]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] deployment_alert: {e}")
-
-
-def github_event(event_type: str, title: str, url: str = ""):
-    slack = _client()
-    if not slack:
-        return
-    icons = {"issue": "bug", "pr": "pr", "branch": "branch", "deploy": "deploy", "action": "action"}
-    icon  = icons.get(event_type, "github")
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            blocks=[
-                {"type": "section",
-                 "text": {"type": "mrkdwn",
-                          "text": f"GitHub {event_type.upper()}: {title}" +
-                                  (f"\n{url}" if url else "")}},
-            ]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] github_event: {e}")
-
-
-def error_alert(context: str, error: str):
-    slack = _client()
-    if not slack:
-        return
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            attachments=[{
-                "color": "danger",
-                "title": "OpenClaw Error",
-                "text":  f"Context: {context}\nError: {error[:500]}",
-                "footer": "OpenClaw",
-                "ts":    int(time.time()),
-            }]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] error_alert: {e}")
-
-
-def bot_online(bot_name: str):
-    slack = _client()
-    if not slack:
-        return
-    try:
-        slack.chat_postMessage(
-            channel=SLACK_CHANNEL,
-            blocks=[
-                {"type": "section",
-                 "text": {"type": "mrkdwn",
-                          "text": f"*{bot_name}* is online and ready."}},
-                {"type": "context",
-                 "elements": [{"type": "mrkdwn",
-                               "text": f"OpenClaw Swarm OS booted | {_ts()}"}]},
-            ]
-        )
-    except Exception as e:
-        print(f"[SlackReporter] bot_online: {e}")
+    async def notify_shutdown(self, agent_id: str) -> bool:
+        """Notify Slack that a worker shut down."""
+        payload = {
+            "text": "OpenClaw Worker Shut Down: %s" % agent_id,
+        }
+        return await self._send(payload)
