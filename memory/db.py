@@ -1,81 +1,211 @@
-"""Memory module — simple in-memory storage for OpenClaw tasks and decisions."""
-
-import json
+"""
+OpenClaw Master Brain — Persistent Memory
+Tasks, decisions, cross-platform sessions
+"""
+import sqlite3
 import os
+import threading
+import json
+import uuid
 from datetime import datetime
+from typing import Optional, List, Dict
 
-# In-memory storage (will be lost on restart — use Redis for persistence)
-_tasks = {}
-_decisions = []
-_deployments = []
+DB_PATH = os.environ.get("MEMORY_DB", "openclaw_memory.db")
+_lock = threading.Lock()
 
+def _conn():
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
-    """Initialize the database."""
-    print("[memory] init_db called")
-    _tasks.clear()
-    _decisions.clear()
-    _deployments.clear()
+    """Create all tables."""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.executescript("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                desc TEXT NOT NULL,
+                agent TEXT NOT NULL,
+                platform TEXT DEFAULT 'unknown',
+                user_id TEXT,
+                result TEXT,
+                status TEXT DEFAULT 'pending',
+                created TEXT DEFAULT (datetime('now')),
+                updated TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS decisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                context TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                platform TEXT,
+                status TEXT DEFAULT 'success',
+                created TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS deployments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo TEXT NOT NULL,
+                branch TEXT,
+                status TEXT,
+                created TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS cross_platform_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                unified_user_id TEXT NOT NULL,
+                telegram_id TEXT,
+                discord_id TEXT,
+                slack_id TEXT,
+                last_active TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                unified_user_id TEXT,
+                platform TEXT NOT NULL,
+                platform_user_id TEXT,
+                message TEXT,
+                response TEXT,
+                created TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_sessions_unified ON cross_platform_sessions(unified_user_id);
+        """)
+        con.commit()
+        con.close()
 
+def save_task(desc: str, agent: str = "unknown", platform: str = "unknown", user_id: str = None) -> str:
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO tasks (desc, agent, platform, user_id) VALUES (?, ?, ?, ?)",
+            (desc, agent, platform, user_id)
+        )
+        tid = cur.lastrowid
+        con.commit()
+        con.close()
+        return f"task_{tid}"
 
-def save_task(description, agent="unknown"):
-    """Save a new task and return its ID."""
-    task_id = "task_%d" % len(_tasks)
-    _tasks[task_id] = {
-        "id": task_id,
-        "description": description,
-        "agent": agent,
-        "status": "pending",
-        "result": None,
-        "created_at": datetime.utcnow().isoformat(),
-    }
-    print("[memory] save_task: %s" % task_id)
-    return task_id
+def update_task(task_id: str, result: str, status: str = "done"):
+    try:
+        tid = int(task_id.replace("task_", ""))
+    except ValueError:
+        return
+        
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE tasks SET result=?, status=?, updated=datetime('now') WHERE id=?",
+            (result, status, tid)
+        )
+        con.commit()
+        con.close()
 
+def get_task(task_id: str) -> Optional[dict]:
+    try:
+        tid = int(task_id.replace("task_", ""))
+    except ValueError:
+        return None
 
-def update_task(task_id, result, status="done"):
-    """Update a task with its result."""
-    if task_id in _tasks:
-        _tasks[task_id]["result"] = result
-        _tasks[task_id]["status"] = status
-        _tasks[task_id]["updated_at"] = datetime.utcnow().isoformat()
-    print("[memory] update_task: %s -> %s" % (task_id, status))
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute("SELECT * FROM tasks WHERE id=?", (tid,))
+        row = cur.fetchone()
+        con.close()
+        if row:
+            return {
+                "id": f"task_{row[0]}", "description": row[1], "agent": row[2],
+                "platform": row[3], "user_id": row[4],
+                "result": row[5], "status": row[6],
+                "created_at": row[7], "updated_at": row[8]
+            }
+        return None
 
+def get_pending_tasks() -> List[dict]:
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute("SELECT * FROM tasks WHERE status='pending'")
+        rows = cur.fetchall()
+        con.close()
+        return [{
+            "id": f"task_{row[0]}", "description": row[1], "agent": row[2],
+            "platform": row[3], "user_id": row[4],
+            "status": row[6]
+        } for row in rows]
 
-def get_pending_tasks():
-    """Get all pending tasks."""
-    return [t for t in _tasks.values() if t["status"] == "pending"]
+def get_stats() -> dict:
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        stats = {}
+        for key, query in [
+            ("tasks_total", "SELECT COUNT(*) FROM tasks"),
+            ("tasks_done", "SELECT COUNT(*) FROM tasks WHERE status='done'"),
+            ("tasks_failed", "SELECT COUNT(*) FROM tasks WHERE status='failed'"),
+            ("tasks_pending", "SELECT COUNT(*) FROM tasks WHERE status='pending'"),
+            ("decisions", "SELECT COUNT(*) FROM decisions"),
+            ("sessions", "SELECT COUNT(*) FROM cross_platform_sessions"),
+            ("deployments", "SELECT COUNT(*) FROM deployments"),
+        ]:
+            try:
+                cur.execute(query)
+                stats[key] = cur.fetchone()[0]
+            except:
+                stats[key] = 0
+        con.close()
+        return stats
 
+def save_decision(action: str, context: str, outcome: str = "success"):
+    """Compatibility wrapper for save_decision(action, context, outcome)"""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO decisions (context, decision, platform, status) VALUES (?, ?, ?, ?)",
+            (context, action, "system", outcome)
+        )
+        con.commit()
+        con.close()
 
-def get_stats():
-    """Get system statistics."""
-    return {
-        "tasks_total": len(_tasks),
-        "tasks_done": len([t for t in _tasks.values() if t["status"] == "done"]),
-        "tasks_failed": len([t for t in _tasks.values() if t["status"] == "failed"]),
-        "tasks_pending": len([t for t in _tasks.values() if t["status"] == "pending"]),
-        "decisions": len(_decisions),
-        "deployments": len(_deployments),
-    }
+def save_deployment(repo: str, branch: str, status: str = "triggered"):
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO deployments (repo, branch, status) VALUES (?, ?, ?)",
+            (repo, branch, status)
+        )
+        con.commit()
+        con.close()
 
+def get_or_create_unified_user(telegram_id: str = None, discord_id: str = None, slack_id: str = None) -> str:
+    """Get or create a unified cross-platform user ID."""
+    with _lock:
+        con = _conn()
+        cur = con.cursor()
+        
+        unified_id = None
+        if telegram_id:
+            cur.execute("SELECT unified_user_id FROM cross_platform_sessions WHERE telegram_id=?", (telegram_id,))
+            row = cur.fetchone()
+            if row: unified_id = row[0]
+        elif discord_id:
+            cur.execute("SELECT unified_user_id FROM cross_platform_sessions WHERE discord_id=?", (discord_id,))
+            row = cur.fetchone()
+            if row: unified_id = row[0]
+        elif slack_id:
+            cur.execute("SELECT unified_user_id FROM cross_platform_sessions WHERE slack_id=?", (slack_id,))
+            row = cur.fetchone()
+            if row: unified_id = row[0]
 
-def save_decision(action, context, outcome="pending"):
-    """Save a decision for audit trail."""
-    _decisions.append({
-        "action": action,
-        "context": context,
-        "outcome": outcome,
-        "timestamp": datetime.utcnow().isoformat(),
-    })
-    print("[memory] save_decision: %s" % action)
-
-
-def save_deployment(repo, branch, status="triggered"):
-    """Save a deployment record."""
-    _deployments.append({
-        "repo": repo,
-        "branch": branch,
-        "status": status,
-        "timestamp": datetime.utcnow().isoformat(),
-    })
-    print("[memory] save_deployment: %s/%s" % (repo, branch))
+        if not unified_id:
+            unified_id = str(uuid.uuid4())
+            cur.execute(
+                "INSERT INTO cross_platform_sessions (unified_user_id, telegram_id, discord_id, slack_id) VALUES (?, ?, ?, ?)",
+                (unified_id, telegram_id, discord_id, slack_id)
+            )
+            con.commit()
+        
+        con.close()
+        return unified_id

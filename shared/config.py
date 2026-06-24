@@ -1,97 +1,115 @@
 """
-OpenClaw Configuration Manager
-Safely loads environment variables with defaults and type checking.
+OpenClaw Master Brain Configuration
+One config. All platforms. All LLMs.
 """
 import os
-from typing import Optional
+from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
 
-
 class Config:
-    """Centralized configuration with safe defaults."""
+    """Master brain configuration — all tokens, all platforms."""
 
-    # Discord
+    # ─── TELEGRAM (2 bots) ─────────────────────────────────────────────
+    TELEGRAM_BOT1_TOKEN: str = os.environ.get("TELEGRAM_BOT1_TOKEN", "")
+    TELEGRAM_BOT2_TOKEN: str = os.environ.get("TELEGRAM_BOT2_TOKEN", "")
+    TELEGRAM_ALLOWED_USERS: List[int] = []
+    if users := os.environ.get("TELEGRAM_ALLOWED_USERS", ""):
+        try:
+            TELEGRAM_ALLOWED_USERS = [int(u.strip()) for u in users.split(",") if u.strip()]
+        except ValueError:
+            logger.warning("Invalid TELEGRAM_ALLOWED_USERS format")
+
+    # ─── DISCORD ─────────────────────────────────────────────────────────
     DISCORD_TOKEN: str = os.environ.get("DISCORD_TOKEN", "")
     DISCORD_GUILD_ID: Optional[int] = None
-    if guild_id := os.environ.get("DISCORD_GUILD_ID"):
+    if gid := os.environ.get("DISCORD_GUILD_ID"):
         try:
-            DISCORD_GUILD_ID = int(guild_id)
+            DISCORD_GUILD_ID = int(gid)
         except ValueError:
-            logger.warning("Invalid DISCORD_GUILD_ID, using None")
+            logger.warning("Invalid DISCORD_GUILD_ID")
 
-    # Slack
+    # ─── SLACK ───────────────────────────────────────────────────────────
     SLACK_BOT_TOKEN: str = os.environ.get("SLACK_BOT_TOKEN", "")
     SLACK_APP_TOKEN: str = os.environ.get("SLACK_APP_TOKEN", "")
-    SLACK_CHANNEL: str = os.environ.get("SLACK_CHANNEL", "ops")
+    SLACK_CHANNEL: str = os.environ.get("SLACK_CHANNEL", "openclaw-ops")
 
-    # LLM
+    # ─── LLM PROVIDERS ───────────────────────────────────────────────────
+    # OpenAI (primary)
+    OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
+    OPENAI_MODEL: str = os.environ.get("OPENAI_MODEL", "gpt-4o")
+    
+    # Groq (fast inference)
     GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "llama3-70b-8192")
-    OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
-    OPENAI_MODEL: str = os.environ.get("OPENAI_MODEL", "gpt-4-turbo")
+    
+    # Primary LLM selection
+    PRIMARY_LLM: str = os.environ.get("PRIMARY_LLM", "openai")  # "openai" or "groq"
 
-    # GitHub
+    # ─── GITHUB ──────────────────────────────────────────────────────────
     GITHUB_TOKEN: str = os.environ.get("GITHUB_TOKEN", "")
-    GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "")
+    GITHUB_REPO: str = os.environ.get("GITHUB_REPO", "d74117157-create/openclaw-bot")
 
-    # Database
+    # ─── MEMORY ──────────────────────────────────────────────────────────
     MEMORY_DB: str = os.environ.get("MEMORY_DB", "openclaw_memory.db")
-    MEMORY_PATH: str = os.environ.get("MEMORY_PATH", "./memory")
+    REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
-    # Paths
-    SCREENSHOT_DIR: str = os.environ.get("SCREENSHOT_DIR", "/tmp/openclaw_screenshots")
-    LOGS_DIR: str = os.environ.get("LOGS_DIR", "./logs")
+    # ─── WEB API ─────────────────────────────────────────────────────────
+    WEB_PORT: int = int(os.environ.get("WEB_PORT", "8080"))
+    OPENCLAW_API_KEY: str = os.environ.get("OPENCLAW_API_KEY", "")
 
-    # Browser
-    BROWSER_HEADLESS: bool = os.environ.get("BROWSER_HEADLESS", "true").lower() == "true"
+    # ─── SECURITY ────────────────────────────────────────────────────────
+    OWNER_ID: str = os.environ.get("OWNER_ID", "")
+    MASTER_BRAIN_MODE: bool = os.environ.get("MASTER_BRAIN_MODE", "true").lower() == "true"
 
-    # Debug
-    DEBUG: bool = os.environ.get("DEBUG", "false").lower() == "true"
+    # ─── SYSTEM ────────────────────────────────────────────────────────
+    PYTHONUNBUFFERED: str = os.environ.get("PYTHONUNBUFFERED", "1")
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
 
     @classmethod
-    def validate(cls) -> dict[str, list[str]]:
-        """Validate required configuration. Returns dict of missing/invalid keys."""
-        errors: dict[str, list[str]] = {}
-
-        # Discord
-        if not cls.DISCORD_TOKEN:
-            if "discord" not in errors:
-                errors["discord"] = []
-            errors["discord"].append("DISCORD_TOKEN not set")
-
-        # Slack
-        if not cls.SLACK_BOT_TOKEN:
-            if "slack" not in errors:
-                errors["slack"] = []
-            errors["slack"].append("SLACK_BOT_TOKEN not set")
-        if not cls.SLACK_APP_TOKEN:
-            if "slack" not in errors:
-                errors["slack"] = []
-            errors["slack"].append("SLACK_APP_TOKEN not set")
-
-        # LLM
-        if not cls.GROQ_API_KEY and not cls.OPENAI_API_KEY:
-            if "llm" not in errors:
-                errors["llm"] = []
-            errors["llm"].append("Neither GROQ_API_KEY nor OPENAI_API_KEY set")
-
-        return errors
+    def get_llm_config(cls) -> dict:
+        """Return active LLM config."""
+        if cls.PRIMARY_LLM == "openai" and cls.OPENAI_API_KEY:
+            return {
+                "provider": "openai",
+                "api_key": cls.OPENAI_API_KEY,
+                "model": cls.OPENAI_MODEL,
+                "base_url": "https://api.openai.com/v1",
+            }
+        elif cls.GROQ_API_KEY:
+            return {
+                "provider": "groq",
+                "api_key": cls.GROQ_API_KEY,
+                "model": cls.GROQ_MODEL,
+                "base_url": "https://api.groq.com/openai/v1",
+            }
+        else:
+            raise ValueError("No LLM API key configured. Set OPENAI_API_KEY or GROQ_API_KEY.")
 
     @classmethod
     def log_config(cls) -> None:
         """Log non-sensitive configuration."""
-        logger.info("=== OpenClaw Configuration ===")
-        logger.info(f"Discord Token: {'✓' if cls.DISCORD_TOKEN else '✗'}")
-        logger.info(f"Slack Bot Token: {'✓' if cls.SLACK_BOT_TOKEN else '✗'}")
-        logger.info(f"Slack App Token: {'✓' if cls.SLACK_APP_TOKEN else '✗'}")
-        logger.info(f"Groq API Key: {'✓' if cls.GROQ_API_KEY else '✗'}")
-        logger.info(f"OpenAI API Key: {'✓' if cls.OPENAI_API_KEY else '✗'}")
-        logger.info(f"GitHub Token: {'✓' if cls.GITHUB_TOKEN else '✗'}")
-        logger.info(f"LLM Model: {cls.GROQ_MODEL if cls.GROQ_API_KEY else cls.OPENAI_MODEL}")
-        logger.info(f"Slack Channel: {cls.SLACK_CHANNEL}")
-        logger.info(f"Debug Mode: {cls.DEBUG}")
-        logger.info(f"Log Level: {cls.LOG_LEVEL}")
-        logger.info("=" * 40)
+        logger.info("=" * 50)
+        logger.info("🧠 OPENCLAW MASTER BRAIN CONFIG")
+        logger.info("=" * 50)
+        logger.info(f"Telegram Bot 1: {'✅' if cls.TELEGRAM_BOT1_TOKEN else '❌'}")
+        logger.info(f"Telegram Bot 2: {'✅' if cls.TELEGRAM_BOT2_TOKEN else '❌'}")
+        logger.info(f"Discord: {'✅' if cls.DISCORD_TOKEN else '❌'}")
+        logger.info(f"Slack: {'✅' if cls.SLACK_BOT_TOKEN else '❌'}")
+        logger.info(f"OpenAI: {'✅' if cls.OPENAI_API_KEY else '❌'} ({cls.OPENAI_MODEL})")
+        logger.info(f"Groq: {'✅' if cls.GROQ_API_KEY else '❌'} ({cls.GROQ_MODEL})")
+        logger.info(f"GitHub: {'✅' if cls.GITHUB_TOKEN else '❌'}")
+        logger.info(f"Primary LLM: {cls.PRIMARY_LLM}")
+        logger.info(f"Master Brain Mode: {'✅ ON' if cls.MASTER_BRAIN_MODE else '❌ OFF'}")
+        logger.info("=" * 50)
+
+    @classmethod
+    def validate(cls) -> dict:
+        """Validate required configuration."""
+        errors = {}
+        if not any([cls.TELEGRAM_BOT1_TOKEN, cls.TELEGRAM_BOT2_TOKEN, cls.DISCORD_TOKEN, cls.SLACK_BOT_TOKEN]):
+            errors["platforms"] = "At least one platform token required"
+        if not cls.OPENAI_API_KEY and not cls.GROQ_API_KEY:
+            errors["llm"] = "At least one LLM API key required"
+        return errors
