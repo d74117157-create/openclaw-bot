@@ -1,139 +1,124 @@
+"""Redis-backed memory layer for OpenClaw.
+
+Provides task queue, status tracking, and agent registry.
 """
-OpenClaw - memory/__init__.py
-SQLite persistent memory: tasks, decisions, deployments tables.
-"""
-import sqlite3, os, threading
+
+import os
+import json
+import uuid
 from datetime import datetime
+import redis
 
-DB_PATH = os.environ.get("MEMORY_DB", "openclaw_memory.db")
-_lock = threading.Lock()
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-
-def _conn():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
-
-
-def init_db():
-    """Create tables if they do not exist."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.executescript("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                desc      TEXT NOT NULL,
-                agent     TEXT NOT NULL,
-                result    TEXT,
-                status    TEXT DEFAULT 'pending',
-                created   TEXT DEFAULT (datetime('now')),
-                updated   TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS decisions (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                context   TEXT NOT NULL,
-                decision  TEXT NOT NULL,
-                created   TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS deployments (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                service   TEXT NOT NULL,
-                status    TEXT NOT NULL,
-                notes     TEXT,
-                created   TEXT DEFAULT (datetime('now'))
-            );
-        """)
-        con.commit()
-        con.close()
+def get_redis() -> redis.Redis:
+    """Get a Redis connection."""
+    return redis.from_url(REDIS_URL, decode_responses=True)
 
 
-def save_task(desc: str, agent: str) -> int:
-    """Insert a new task and return its id."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO tasks (desc, agent) VALUES (?, ?)",
-            (desc, agent)
-        )
-        tid = cur.lastrowid
-        con.commit()
-        con.close()
-        return tid
+def push_task(payload: dict) -> str:
+    """Queue a task and return its ID."""
+    task_id = f"task_{uuid.uuid4().hex[:12]}"
+    payload["id"] = task_id
+    payload["status"] = "queued"
+    payload["created_at"] = datetime.utcnow().isoformat()
+
+    r = get_redis()
+    pipe = r.pipeline()
+    pipe.hset(f"openclaw:task:{task_id}", mapping={
+        "data": json.dumps(payload),
+        "status": "queued",
+        "created_at": payload["created_at"],
+    })
+    pipe.lpush("openclaw:queue", task_id)
+    pipe.execute()
+
+    return task_id
 
 
-def update_task(tid: int, result: str, status: str = "done"):
-    """Update task result and status."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "UPDATE tasks SET result=?, status=?, updated=datetime('now') WHERE id=?",
-            (result, status, tid)
-        )
-        con.commit()
-        con.close()
+def pop_task() -> dict | None:
+    """Pop a task from the queue (blocking)."""
+    r = get_redis()
+    result = r.brpop("openclaw:queue", timeout=5)
+    if result is None:
+        return None
+
+    _, task_id = result
+    task_data = r.hget(f"openclaw:task:{task_id}", "data")
+    if task_data is None:
+        return None
+
+    r.hset(f"openclaw:task:{task_id}", "status", "processing")
+    r.lpush("openclaw:processing", task_id)
+
+    return json.loads(task_data)
 
 
-def get_tasks(limit: int = 20) -> list:
-    """Return recent tasks."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "SELECT id, desc, agent, status, created FROM tasks ORDER BY id DESC LIMIT ?",
-            (limit,)
-        )
-        rows = cur.fetchall()
-        con.close()
-        return rows
+def complete_task(task_id: str, result: str, success: bool = True):
+    """Mark a task as completed/failed."""
+    r = get_redis()
+    status = "completed" if success else "failed"
+
+    pipe = r.pipeline()
+    pipe.hset(f"openclaw:task:{task_id}", mapping={
+        "status": status,
+        "result": result,
+        "completed_at": datetime.utcnow().isoformat(),
+    })
+    pipe.lrem("openclaw:processing", 0, task_id)
+    pipe.incr(f"openclaw:stats:{status}")
+    pipe.execute()
 
 
-def save_decision(context: str, decision: str, status: str = "success"):
-    """Record a decision."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO decisions (context, decision) VALUES (?, ?)",
-            (context, decision)
-        )
-        con.commit()
-        con.close()
+def get_task_status(task_id: str) -> dict | None:
+    """Get task status and result."""
+    r = get_redis()
+    data = r.hgetall(f"openclaw:task:{task_id}")
+    if not data:
+        return None
+    return {
+        "id": task_id,
+        "status": data.get("status", "unknown"),
+        "result": data.get("result"),
+        "created_at": data.get("created_at"),
+        "completed_at": data.get("completed_at"),
+    }
 
 
-def save_deployment(service: str, status: str, notes: str = ""):
-    """Record a deployment event."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute(
-            "INSERT INTO deployments (service, status, notes) VALUES (?, ?, ?)",
-            (service, status, notes)
-        )
-        con.commit()
-        con.close()
+def get_recent_tasks(limit: int = 10) -> list:
+    """Get recent tasks from queue history."""
+    r = get_redis()
+    # Get all task keys, sort by creation time
+    keys = r.keys("openclaw:task:*")
+    tasks = []
+    for key in keys[:limit * 2]:  # Over-fetch to account for missing
+        data = r.hgetall(key)
+        if data and "data" in data:
+            try:
+                task = json.loads(data["data"])
+                task["status"] = data.get("status", "unknown")
+                task["result"] = data.get("result")
+                tasks.append(task)
+            except json.JSONDecodeError:
+                continue
+
+    # Sort by created_at descending
+    tasks.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return tasks[:limit]
 
 
-def get_stats() -> dict:
-    """Return a summary of current memory state."""
-    with _lock:
-        con = _conn()
-        cur = con.cursor()
-        cur.execute("SELECT COUNT(*) FROM tasks")
-        total = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status='done'")
-        done = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status='failed'")
-        failed = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM decisions")
-        decisions = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM deployments")
-        deploys = cur.fetchone()[0]
-        con.close()
-        return {
-            "tasks_total": total,
-            "tasks_done": done,
-            "tasks_failed": failed,
-            "decisions": decisions,
-            "deployments": deploys,
-        }
+def register_agent(agent_id: str, info: dict):
+    """Register an AI worker agent."""
+    r = get_redis()
+    r.sadd("openclaw:agents", agent_id)
+    r.hset(f"openclaw:agent:{agent_id}", mapping={
+        "status": info.get("status", "active"),
+        "last_seen": datetime.utcnow().isoformat(),
+        **{k: str(v) for k, v in info.items() if k not in ("status",)},
+    })
+
+
+def heartbeat_agent(agent_id: str):
+    """Update agent heartbeat."""
+    r = get_redis()
+    r.hset(f"openclaw:agent:{agent_id}", "last_seen", datetime.utcnow().isoformat())
