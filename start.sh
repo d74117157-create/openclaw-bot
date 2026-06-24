@@ -9,5 +9,9 @@ if [ -z "${DISCORD_TOKEN:-}" ]; then
   exit 1
 fi
 
+# Test imports first
+echo "[OpenClaw] Testing imports..."
+python3 test_imports.py
+
 # Start Discord bot
 exec python3 gateway/bot.py
