@@ -3,6 +3,7 @@ OpenClaw - gateway/brain_bot.py
 Discord gateway: listens in #brain channel, runs agent swarm via slash commands.
 REPAIRED: Fixed indentation, async safety, logging, command defer.
 FIXED: process_task_async / orchestrate_task_async → sync wrappers with asyncio
+FIXED: Import-time crash - DISCORD_TOKEN check moved to runtime
 """
 import os
 import asyncio
@@ -26,8 +27,7 @@ DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "")
 BRAIN_CHANNEL = os.environ.get("BRAIN_CHANNEL", "brain")
 
 if not DISCORD_TOKEN:
-    logger.error("❌ DISCORD_TOKEN not set!")
-    raise ValueError("DISCORD_TOKEN required")
+    logger.warning("DISCORD_TOKEN not set - brain_bot will not start")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,13 +35,11 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
 
-
 def _embed(title: str, description: str, color: int = 0x00bfff) -> discord.Embed:
     """Create an embed."""
     e = discord.Embed(title=title, description=description, color=color)
     e.set_footer(text="OpenClaw Brain")
     return e
-
 
 async def _run_agent(agent: str, task_desc: str) -> str:
     """Run an agent on a task with timeout protection."""
@@ -67,7 +65,6 @@ async def _run_agent(agent: str, task_desc: str) -> str:
         logger.error(f"❌ Agent {agent} failed: {exc}")
         raise
 
-
 async def _orchestrate(task_desc: str) -> list:
     """Orchestrate a task into subtasks."""
     try:
@@ -82,7 +79,6 @@ async def _orchestrate(task_desc: str) -> list:
     except Exception as e:
         logger.warning(f"Orchestration failed: {e}, using fallback")
         return [{"agent": "orchestrator", "task": task_desc}]
-
 
 # -- Events -------------------------------------------------------------------
 
@@ -102,7 +98,6 @@ async def on_ready():
         logger.error(f"❌ Database init failed: {e}")
 
     logger.info(f"✓ BrainBot online as {client.user}")
-
 
 @client.event
 async def on_message(message: discord.Message):
@@ -142,11 +137,10 @@ async def on_message(message: discord.Message):
         except Exception as exc:
             tb = traceback.format_exc()[-800:]
             await thinking.edit(
-                embed=_embed("[orch] Error", f"```{tb}```", color=0xff4444)
+                embed=_embed("[orch] Error", f"```python\n{tb}```", color=0xff4444)
             )
     except Exception as e:
         logger.error(f"❌ on_message error: {e}", exc_info=True)
-
 
 # -- Slash Commands -----------------------------------------------------------
 
@@ -165,9 +159,8 @@ async def cmd_brain(interaction: discord.Interaction, task: str):
     except Exception as exc:
         logger.error(f"❌ /brain error: {exc}", exc_info=True)
         await interaction.followup.send(
-            embed=_embed("[brain] Error", f"```{traceback.format_exc()[-800:]}```", color=0xff4444)
+            embed=_embed("[brain] Error", f"```python\n{traceback.format_exc()[-800:]}```", color=0xff4444)
         )
-
 
 @tree.command(name="status", description="OpenClaw system status")
 async def cmd_status(interaction: discord.Interaction):
@@ -178,11 +171,11 @@ async def cmd_status(interaction: discord.Interaction):
 
         stats = get_stats()
         lines = [
-            f"Tasks total  : {stats.get('tasks_total', 0)}",
-            f"Done         : {stats.get('tasks_done', 0)}",
-            f"Failed       : {stats.get('tasks_failed', 0)}",
-            f"Agents       : {len(AGENT_PERSONAS)}",
-            f"Model        : {os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')}",
+            f"Tasks total : {stats.get('tasks_total', 0)}",
+            f"Done : {stats.get('tasks_done', 0)}",
+            f"Failed : {stats.get('tasks_failed', 0)}",
+            f"Agents : {len(AGENT_PERSONAS)}",
+            f"Model : {os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')}",
         ]
         await interaction.followup.send(
             embed=_embed("[status] OpenClaw", "\n".join(lines))
@@ -192,7 +185,6 @@ async def cmd_status(interaction: discord.Interaction):
         await interaction.followup.send(
             embed=_embed("[status] Error", str(exc), color=0xff4444)
         )
-
 
 @tree.command(name="agents", description="List all agent personas")
 async def cmd_agents(interaction: discord.Interaction):
@@ -210,7 +202,6 @@ async def cmd_agents(interaction: discord.Interaction):
         await interaction.followup.send(
             embed=_embed("[agents] Error", str(exc), color=0xff4444)
         )
-
 
 @tree.command(name="swarm", description="Run a multi-agent swarm on a task")
 @app_commands.describe(task="Task for the full swarm")
@@ -238,13 +229,10 @@ async def cmd_swarm(interaction: discord.Interaction, task: str):
     except Exception as exc:
         logger.error(f"❌ /swarm error: {exc}", exc_info=True)
         await interaction.followup.send(
-            embed=_embed("[swarm] Error", f"```{traceback.format_exc()[-800:]}```", color=0xff4444)
+            embed=_embed("[swarm] Error", f"```python\n{traceback.format_exc()[-800:]}```", color=0xff4444)
         )
 
-
 # -- Entry --------------------------------------------------------------------
-
-
 
 # ── Brain singleton for Discord cog ────────────────────────────────────────
 
@@ -257,7 +245,11 @@ def get_brain():
         _brain_instance = client
     return _brain_instance
 
-if __name__ == "__main__":
+def run_brain_bot():
+    """Entry point - checks token before starting."""
+    if not DISCORD_TOKEN:
+        logger.error("Cannot start brain_bot: DISCORD_TOKEN not set")
+        return
     logger.info("=" * 60)
     logger.info("OpenClaw Brain Bot Starting")
     logger.info("=" * 60)
@@ -267,3 +259,6 @@ if __name__ == "__main__":
         logger.info("Brain bot shutting down...")
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
+
+if __name__ == "__main__":
+    run_brain_bot()
