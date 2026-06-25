@@ -2,7 +2,6 @@
 OpenClaw - gateway/bot.py
 Extended Discord bot with task management and deployment slash commands.
 FIXED: Complete indentation, async safety, proper error handling, sys.path fix.
-FIXED: Import-time crash - DISCORD_TOKEN check moved to runtime
 """
 import sys
 import os
@@ -32,10 +31,11 @@ SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL", "openclaw-ops")
 
 if not DISCORD_TOKEN:
-    print("[OpenClawBot] WARNING: DISCORD_TOKEN not set - bot will not start")
+    raise ValueError("❌ DISCORD_TOKEN not set in environment")
 
 intents = discord.Intents.default()
 intents.message_content = True
+
 
 class OpenClawBot(discord.Client):
     def __init__(self):
@@ -50,8 +50,10 @@ class OpenClawBot(discord.Client):
     async def on_ready(self):
         print(f"[OpenClawBot] Online as {self.user}")
 
+
 bot = OpenClawBot()
 tree = bot.tree
+
 
 # ── Helpers ────────────────────────────────────────────────────────────
 def _embed(title: str, desc: str, color: int = 0x00bfff) -> discord.Embed:
@@ -59,6 +61,7 @@ def _embed(title: str, desc: str, color: int = 0x00bfff) -> discord.Embed:
     e = discord.Embed(title=title, description=desc, color=color)
     e.set_footer(text="OpenClaw")
     return e
+
 
 async def _run_agent(agent: str, task_desc: str) -> str:
     """Run a single agent on a task."""
@@ -77,6 +80,7 @@ async def _run_agent(agent: str, task_desc: str) -> str:
         update_task(tid, error_msg, "failed")
         agent_complete(agent, task_desc, error_msg, success=False)
         raise
+
 
 # ── Slash Commands ─────────────────────────────────────────────────────
 
@@ -134,9 +138,10 @@ async def cmd_create_task(interaction: discord.Interaction, task: str):
     except Exception as e:
         error_trace = traceback.format_exc()[-800:]
         await interaction.followup.send(
-            embed=_embed("❌ Error", f"```python\n{error_trace}```", color=0xff4444)
+            embed=_embed("❌ Error", f"```{error_trace}```", color=0xff4444)
         )
         print(f"[create-task] Error: {e}")
+
 
 @tree.command(name="swarm", description="Manually pick agents and run them")
 @app_commands.describe(
@@ -179,9 +184,10 @@ async def cmd_swarm(interaction: discord.Interaction, agents: str, task: str):
     except Exception as e:
         error_trace = traceback.format_exc()[-800:]
         await interaction.followup.send(
-            embed=_embed("❌ Error", f"```python\n{error_trace}```", color=0xff4444)
+            embed=_embed("❌ Error", f"```{error_trace}```", color=0xff4444)
         )
         print(f"[swarm] Error: {e}")
+
 
 @tree.command(name="agents", description="List all available agents")
 async def cmd_agents(interaction: discord.Interaction):
@@ -194,6 +200,7 @@ async def cmd_agents(interaction: discord.Interaction):
         )
     except Exception as e:
         print(f"[agents] Error: {e}")
+
 
 @tree.command(name="status", description="Show system status and stats")
 async def cmd_status(interaction: discord.Interaction):
@@ -214,13 +221,10 @@ async def cmd_status(interaction: discord.Interaction):
     except Exception as e:
         print(f"[status] Error: {e}")
 
+
 # ── Entry Point ────────────────────────────────────────────────────────
 
-def run_bot():
-    """Entry point - checks token before starting."""
-    if not DISCORD_TOKEN:
-        print("[OpenClawBot] ERROR: DISCORD_TOKEN not set - cannot start")
-        return
+if __name__ == "__main__":
     print("=" * 60)
     print("OpenClaw Discord Bot Starting")
     print("Python path:", sys.path)
@@ -233,5 +237,70 @@ def run_bot():
         print(f"Fatal error: {e}")
         traceback.print_exc()
 
-if __name__ == "__main__":
-    run_bot()
+
+# ── Task System Commands ────────────────────────────────────────────────
+from worker.task_dispatcher import submit_task, execute_task, get_task_status, list_pending as list_pending_tasks
+
+@tree.command(name="task", description="Submit a task to OpenClaw")
+@app_commands.describe(
+    description="What should the bot do?",
+    agent="Which agent? (orchestrator, coder, researcher, ops, growth, qa)"
+)
+async def task_command(
+    interaction: discord.Interaction,
+    description: str,
+    agent: str = "orchestrator"
+):
+    """Submit and execute a task."""
+    await interaction.response.defer(thinking=True)
+    
+    try:
+        task_id = await submit_task(description, agent, f"discord:{interaction.user.name}", str(interaction.channel_id))
+        result = await execute_task(task_id)
+        
+        embed = _embed(f"✅ Task {task_id}", result[:1000])
+        embed.add_field(name="Agent", value=agent, inline=True)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        embed = _embed(f"❌ Error", str(e)[:500], color=0xff0000)
+        await interaction.followup.send(embed=embed)
+
+
+@tree.command(name="status", description="Check task status")
+@app_commands.describe(task_id="Task ID to check")
+async def status_command(interaction: discord.Interaction, task_id: str):
+    """Check status of a task."""
+    await interaction.response.defer(thinking=True)
+    
+    try:
+        status = await get_task_status(task_id)
+        if "error" in status:
+            embed = _embed("❌ Not Found", status["error"], color=0xff0000)
+        else:
+            desc = f"**Status**: {status.get('status')}\n**Result**: {status.get('result', 'N/A')[:500]}"
+            embed = _embed(f"Task {task_id}", desc)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        embed = _embed("❌ Error", str(e)[:500], color=0xff0000)
+        await interaction.followup.send(embed=embed)
+
+
+@tree.command(name="pending", description="List pending tasks")
+async def pending_command(interaction: discord.Interaction):
+    """List all pending tasks."""
+    await interaction.response.defer(thinking=True)
+    
+    try:
+        tasks = await list_pending_tasks()
+        if not tasks:
+            desc = "No pending tasks"
+        else:
+            desc = "\n".join([f"• {t.get('id')}: {t.get('desc')[:60]}" for t in tasks[:10]])
+        embed = _embed("📋 Pending Tasks", desc)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        embed = _embed("❌ Error", str(e)[:500], color=0xff0000)
+        await interaction.followup.send(embed=embed)
+
+
+print("[OpenClaw] Task commands registered: /task, /status, /pending")
