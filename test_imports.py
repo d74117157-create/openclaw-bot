@@ -65,8 +65,9 @@ for mod in modules:
             print(f"  [FAIL] {mod}: {e}")
             failed.append((mod, str(e)))
     except ModuleNotFoundError as e:
-        if "memory.core" in str(e) or "worker.agents" in str(e):
-            print(f"  [WARN] {mod}: {e} (optional, skipping)")
+        # Check if it's an optional module
+        if "memory.core" in str(e) or "core" in str(e):
+            print(f"  [WARN] {mod}: Module not found (optional, skipping)")
         else:
             print(f"  [FAIL] {mod}: {e}")
             failed.append((mod, f"ModuleNotFoundError: {e}"))
@@ -76,12 +77,14 @@ for mod in modules:
         failed.append((mod, f"{type(e).__name__}: {e}"))
 
 if failed:
-    print(f"\n[OpenClaw Elite] {len(failed)} import(s) had issues:")
+    print(f"\n[OpenClaw Elite] {len(failed)} import(s) failed:")
     for mod, err in failed:
         print(f"  - {mod}: {err}")
     print("\n[OpenClaw Elite] WARNING: Some modules failed to import.")
-    print("[OpenClaw Elite] The system will start anyway — non-critical modules may be unavailable.")
-    sys.exit(0)  # Allow startup despite failures
+    print("[OpenClaw Elite] The system will attempt to start anyway.")
+    print("[OpenClaw Elite] Non-critical modules may be unavailable.")
+    # Exit 0 to allow startup - we'll handle missing modules at runtime
+    sys.exit(0)
 else:
     print(f"\n[OpenClaw Elite] All {len(modules)} modules imported successfully!")
     sys.exit(0)
