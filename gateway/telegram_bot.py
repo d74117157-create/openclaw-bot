@@ -60,26 +60,17 @@ class TelegramGateway:
 
     async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command."""
-        await update.message.reply_text(
-            "🧠 **OpenClaw Elite Bot**
-
-"
-            "I am an autonomous AI workforce. Send me any task and I will route it to the right agent.
-
-"
-            "Commands:
-"
-            "/task <description> — Submit a task
-"
-            "/status <task_id> — Check task status
-"
-            "/pending — List pending tasks
-"
-            "/agents — List available agents
-"
-            "/help — Show this help",
-            parse_mode="Markdown"
+        welcome_text = (
+            "🧠 **OpenClaw Elite Bot**\n\n"
+            "I am an autonomous AI workforce. Send me any task and I will route it to the right agent.\n\n"
+            "Commands:\n"
+            "/task <description> — Submit a task\n"
+            "/status <task_id> — Check task status\n"
+            "/pending — List pending tasks\n"
+            "/agents — List available agents\n"
+            "/help — Show this help"
         )
+        await update.message.reply_text(welcome_text, parse_mode="Markdown")
 
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command."""
@@ -88,8 +79,7 @@ class TelegramGateway:
     async def cmd_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /task command — submits task to dispatcher."""
         if not context.args:
-            await update.message.reply_text("Usage: /task <description>
-Example: /task research AI automation tools")
+            await update.message.reply_text("Usage: /task <description>\nExample: /task research AI automation tools")
             return
 
         task_desc = " ".join(context.args)
@@ -119,18 +109,13 @@ Example: /task research AI automation tools")
             # Execute immediately
             result = await execute_task(task_id)
 
-            await update.message.reply_text(
-                f"✅ **Task Complete**
-
-"
-                f"**ID:** `{task_id}`
-"
-                f"**Agent:** {agent}
-"
-                f"**Result:**
-{result[:1000]}",
-                parse_mode="Markdown"
+            result_text = (
+                f"✅ **Task Complete**\n\n"
+                f"**ID:** `{task_id}`\n"
+                f"**Agent:** {agent}\n"
+                f"**Result:**\n{result[:1000]}"
             )
+            await update.message.reply_text(result_text, parse_mode="Markdown")
 
         except Exception as e:
             logger.error(f"Task error: {e}", exc_info=True)
@@ -149,17 +134,13 @@ Example: /task research AI automation tools")
             if "error" in status:
                 await update.message.reply_text(f"❌ Task not found: {task_id}")
             else:
-                await update.message.reply_text(
-                    f"📋 **Task Status**
-
-"
-                    f"**ID:** `{task_id}`
-"
-                    f"**Status:** {status.get('status', 'unknown')}
-"
-                    f"**Result:** {status.get('result', 'N/A')[:500]}",
-                    parse_mode="Markdown"
+                status_text = (
+                    f"📋 **Task Status**\n\n"
+                    f"**ID:** `{task_id}`\n"
+                    f"**Status:** {status.get('status', 'unknown')}\n"
+                    f"**Result:** {status.get('result', 'N/A')[:500]}"
                 )
+                await update.message.reply_text(status_text, parse_mode="Markdown")
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)[:500]}")
 
@@ -175,10 +156,8 @@ Example: /task research AI automation tools")
                     f"• `{t.get('id', 'N/A')}`: {t.get('desc', 'N/A')[:50]}..."
                     for t in tasks[:10]
                 ])
-                await update.message.reply_text(
-                    f"📋 **Pending Tasks** ({len(tasks)})\n\n{task_list}",
-                    parse_mode="Markdown"
-                )
+                pending_text = f"📋 **Pending Tasks** ({len(tasks)})\n\n{task_list}"
+                await update.message.reply_text(pending_text, parse_mode="Markdown")
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)[:500]}")
 
@@ -187,11 +166,11 @@ Example: /task research AI automation tools")
         from worker.agents import AGENT_DISPATCH
 
         agents = "\n".join([f"• **{k}**" for k in AGENT_DISPATCH.keys()])
-        await update.message.reply_text(
+        agents_text = (
             f"🤖 **Available Agents**\n\n{agents}\n\n"
-            f"Use `/task <description>` to submit a task. The right agent will be selected automatically.",
-            parse_mode="Markdown"
+            f"Use `/task <description>` to submit a task. The right agent will be selected automatically."
         )
+        await update.message.reply_text(agents_text, parse_mode="Markdown")
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle regular text messages."""
@@ -214,16 +193,12 @@ Example: /task research AI automation tools")
 
             result = await execute_task(task_id)
 
-            await update.message.reply_text(
-                f"✅ **Done**\n\n{result[:1500]}",
-                parse_mode="Markdown"
-            )
+            await update.message.reply_text(f"✅ **Done**\n\n{result[:1500]}", parse_mode="Markdown")
 
         except Exception as e:
             logger.error(f"Message handling error: {e}", exc_info=True)
             await update.message.reply_text(
-                f"❌ I encountered an error processing your request.\n\n"
-                f"Error: `{str(e)[:500]}`",
+                f"❌ I encountered an error processing your request.\n\nError: `{str(e)[:500]}`",
                 parse_mode="Markdown"
             )
 
