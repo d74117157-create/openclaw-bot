@@ -2,6 +2,7 @@
 OpenClaw - gateway/bot.py
 Extended Discord bot with task management and deployment slash commands.
 FIXED: Complete indentation, async safety, proper error handling, sys.path fix.
+FIXED: Import-time crash - DISCORD_TOKEN check moved to runtime
 """
 import sys
 import os
@@ -31,11 +32,10 @@ SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL", "openclaw-ops")
 
 if not DISCORD_TOKEN:
-    raise ValueError("❌ DISCORD_TOKEN not set in environment")
+    print("[OpenClawBot] WARNING: DISCORD_TOKEN not set - bot will not start")
 
 intents = discord.Intents.default()
 intents.message_content = True
-
 
 class OpenClawBot(discord.Client):
     def __init__(self):
@@ -50,10 +50,8 @@ class OpenClawBot(discord.Client):
     async def on_ready(self):
         print(f"[OpenClawBot] Online as {self.user}")
 
-
 bot = OpenClawBot()
 tree = bot.tree
-
 
 # ── Helpers ────────────────────────────────────────────────────────────
 def _embed(title: str, desc: str, color: int = 0x00bfff) -> discord.Embed:
@@ -61,7 +59,6 @@ def _embed(title: str, desc: str, color: int = 0x00bfff) -> discord.Embed:
     e = discord.Embed(title=title, description=desc, color=color)
     e.set_footer(text="OpenClaw")
     return e
-
 
 async def _run_agent(agent: str, task_desc: str) -> str:
     """Run a single agent on a task."""
@@ -80,7 +77,6 @@ async def _run_agent(agent: str, task_desc: str) -> str:
         update_task(tid, error_msg, "failed")
         agent_complete(agent, task_desc, error_msg, success=False)
         raise
-
 
 # ── Slash Commands ─────────────────────────────────────────────────────
 
@@ -138,10 +134,9 @@ async def cmd_create_task(interaction: discord.Interaction, task: str):
     except Exception as e:
         error_trace = traceback.format_exc()[-800:]
         await interaction.followup.send(
-            embed=_embed("❌ Error", f"```{error_trace}```", color=0xff4444)
+            embed=_embed("❌ Error", f"```python\n{error_trace}```", color=0xff4444)
         )
         print(f"[create-task] Error: {e}")
-
 
 @tree.command(name="swarm", description="Manually pick agents and run them")
 @app_commands.describe(
@@ -184,10 +179,9 @@ async def cmd_swarm(interaction: discord.Interaction, agents: str, task: str):
     except Exception as e:
         error_trace = traceback.format_exc()[-800:]
         await interaction.followup.send(
-            embed=_embed("❌ Error", f"```{error_trace}```", color=0xff4444)
+            embed=_embed("❌ Error", f"```python\n{error_trace}```", color=0xff4444)
         )
         print(f"[swarm] Error: {e}")
-
 
 @tree.command(name="agents", description="List all available agents")
 async def cmd_agents(interaction: discord.Interaction):
@@ -200,7 +194,6 @@ async def cmd_agents(interaction: discord.Interaction):
         )
     except Exception as e:
         print(f"[agents] Error: {e}")
-
 
 @tree.command(name="status", description="Show system status and stats")
 async def cmd_status(interaction: discord.Interaction):
@@ -221,10 +214,13 @@ async def cmd_status(interaction: discord.Interaction):
     except Exception as e:
         print(f"[status] Error: {e}")
 
-
 # ── Entry Point ────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+def run_bot():
+    """Entry point - checks token before starting."""
+    if not DISCORD_TOKEN:
+        print("[OpenClawBot] ERROR: DISCORD_TOKEN not set - cannot start")
+        return
     print("=" * 60)
     print("OpenClaw Discord Bot Starting")
     print("Python path:", sys.path)
@@ -236,3 +232,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Fatal error: {e}")
         traceback.print_exc()
+
+if __name__ == "__main__":
+    run_bot()
