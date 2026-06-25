@@ -14,6 +14,7 @@ modules = [
     "shared.config",
     "shared.logging",
     "shared.message_bus",
+    "shared.mission",
 
     # Memory
     "memory.db",
@@ -30,21 +31,27 @@ modules = [
     "worker.approval",
     "worker.slack_reporter",
     "worker.self_test",
+    "worker.task_dispatcher",
 
-    # Worker — Agents
+    # Worker — Agents (all new ones included)
     "worker.agents.bob",
     "worker.agents.carla",
     "worker.agents.dave",
     "worker.agents.alice",
     "worker.agents.coder",
-    "worker.agents.researcher",
-    "worker.agents.ops",
-    "worker.agents.growth",
+    "worker.agents.reviewer",
     "worker.agents.qa",
+    "worker.agents.ops",
+    "worker.agents.research",
+    "worker.agents.researcher",
+    "worker.agents.growth",
+    "worker.agents.memory_agent",
+    "worker.agents.business_agent",
 
     # Gateways
     "gateway.telegram_bot",
     "gateway.discord_bot",
+    "gateway.discord_tasks",
     "gateway.slack_bot",
     "gateway.brain_bot",
     "gateway.bot",
@@ -65,8 +72,9 @@ for mod in modules:
             print(f"  [FAIL] {mod}: {e}")
             failed.append((mod, str(e)))
     except ModuleNotFoundError as e:
-        # Check if it's an optional module
-        if "memory.core" in str(e) or "core" in str(e):
+        # Optional modules that may not exist yet
+        optional = ["memory.core", "gateway.discord_tasks", "worker.task_dispatcher"]
+        if any(opt in str(e) for opt in optional):
             print(f"  [WARN] {mod}: Module not found (optional, skipping)")
         else:
             print(f"  [FAIL] {mod}: {e}")
@@ -83,7 +91,6 @@ if failed:
     print("\n[OpenClaw Elite] WARNING: Some modules failed to import.")
     print("[OpenClaw Elite] The system will attempt to start anyway.")
     print("[OpenClaw Elite] Non-critical modules may be unavailable.")
-    # Exit 0 to allow startup - we'll handle missing modules at runtime
     sys.exit(0)
 else:
     print(f"\n[OpenClaw Elite] All {len(modules)} modules imported successfully!")
