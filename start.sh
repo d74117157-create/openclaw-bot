@@ -28,8 +28,8 @@ python3 test_imports.py
 IMPORT_STATUS=$?
 
 if [ $IMPORT_STATUS -ne 0 ]; then
-    echo "[OpenClaw Elite] WARNING: Import test had issues (exit code $IMPORT_STATUS)"
-    echo "[OpenClaw Elite] Attempting to start anyway..."
+    echo "[OpenClaw Elite] WARNING: Import test returned exit code $IMPORT_STATUS"
+    echo "[OpenClaw Elite] Continuing startup anyway - non-critical modules may be unavailable"
 fi
 
 # Start the Elite system
