@@ -10,11 +10,11 @@ echo "[OpenClaw Elite] ============================================"
 if [ -z "${DISCORD_TOKEN:-}" ] && [ -z "${TELEGRAM_BOT1_TOKEN:-}" ] && [ -z "${TELEGRAM_BOT2_TOKEN:-}" ] && [ -z "${TELEGRAM_BOT3_TOKEN:-}" ] && [ -z "${SLACK_BOT_TOKEN:-}" ]; then
     echo "[OpenClaw Elite] ERROR: No gateway token configured!"
     echo "[OpenClaw Elite] Please set at least one of:"
-    echo "[OpenClaw Elite]   - DISCORD_TOKEN (for Discord)"
-    echo "[OpenClaw Elite]   - TELEGRAM_BOT1_TOKEN (for Telegram Bot 1)"
-    echo "[OpenClaw Elite]   - TELEGRAM_BOT2_TOKEN (for Telegram Bot 2)"
-    echo "[OpenClaw Elite]   - TELEGRAM_BOT3_TOKEN (for Telegram Bot 3)"
-    echo "[OpenClaw Elite]   - SLACK_BOT_TOKEN (for Slack)"
+    echo "[OpenClaw Elite] - DISCORD_TOKEN (for Discord)"
+    echo "[OpenClaw Elite] - TELEGRAM_BOT1_TOKEN (for Telegram Bot 1)"
+    echo "[OpenClaw Elite] - TELEGRAM_BOT2_TOKEN (for Telegram Bot 2)"
+    echo "[OpenClaw Elite] - TELEGRAM_BOT3_TOKEN (for Telegram Bot 3)"
+    echo "[OpenClaw Elite] - SLACK_BOT_TOKEN (for Slack)"
     echo "[OpenClaw Elite] In your Render dashboard Environment Variables"
     exit 1
 fi
@@ -22,7 +22,7 @@ fi
 # Log env vars (without exposing secrets)
 echo "[OpenClaw Elite] Environment check:"
 echo "[OpenClaw Elite] DISCORD_TOKEN: ${DISCORD_TOKEN:+SET}"
-echo "[OpenClaw Elite] DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-NOT SET}"
+echo "[OpenClaw Elite] DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-NOT SET (slash commands will sync globally, may take 1h)}"
 echo "[OpenClaw Elite] TELEGRAM_BOT1_TOKEN: ${TELEGRAM_BOT1_TOKEN:+SET}"
 echo "[OpenClaw Elite] TELEGRAM_BOT2_TOKEN: ${TELEGRAM_BOT2_TOKEN:+SET}"
 echo "[OpenClaw Elite] TELEGRAM_BOT3_TOKEN: ${TELEGRAM_BOT3_TOKEN:+SET}"
@@ -32,6 +32,23 @@ echo "[OpenClaw Elite] SLACK_CHANNEL: ${SLACK_CHANNEL:-NOT SET}"
 echo "[OpenClaw Elite] GROQ_API_KEY: ${GROQ_API_KEY:+SET}"
 echo "[OpenClaw Elite] OPENAI_API_KEY: ${OPENAI_API_KEY:+SET}"
 echo "[OpenClaw Elite] GITHUB_TOKEN: ${GITHUB_TOKEN:+SET}"
+echo "[OpenClaw Elite] REDIS_URL: ${REDIS_URL:-NOT SET (SQLite will be used as fallback)}"
+echo "[OpenClaw Elite] MEMORY_DB: ${MEMORY_DB:-/app/data/openclaw_memory.db}"
+
+# Optional Redis check
+if [ -n "${REDIS_URL:-}" ]; then
+    echo "[OpenClaw Elite] Checking Redis connectivity..."
+    python3 -c "
+import redis, sys
+try:
+    r = redis.from_url('${REDIS_URL}')
+    r.ping()
+    print('[OpenClaw Elite] Redis: OK')
+except Exception as e:
+    print(f'[OpenClaw Elite] Redis: UNAVAILABLE ({e})')
+    print('[OpenClaw Elite] Falling back to SQLite for memory')
+" || true
+fi
 
 # Test imports first
 echo "[OpenClaw Elite] Testing imports..."

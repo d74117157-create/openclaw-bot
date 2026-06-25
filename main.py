@@ -4,6 +4,7 @@ OpenClaw Elite — Autonomous Multi-Agent AI System
 AI Workforce, not a chatbot.
 
 Fully Integrated: Discord, 3x Telegram, Slack, Task Dispatcher, All Agents
+FIXED: Proper error logging from gateway startup, unified agent initialization via AGENT_DISPATCH only.
 """
 import os
 import sys
@@ -26,11 +27,7 @@ from worker.monitoring import get_monitoring
 from worker.approval import get_approval_framework
 from worker.task_dispatcher import get_dispatcher, submit_task, execute_task
 
-# Import ALL agents
-from worker.agents.bob import BobAgent
-from worker.agents.carla import CarlaAgent
-from worker.agents.dave import DaveAgent
-from worker.agents.alice import AliceAgent
+# Import ALL agents via AGENT_DISPATCH (single source of truth)
 from worker.agents import AGENT_DISPATCH
 
 # Gateways
@@ -41,21 +38,12 @@ from gateway.slack_bot import SlackGateway
 setup_logging("openclaw_elite")
 logger = get_logger("elite_orchestrator")
 
-# Agent map for direct instantiation (legacy support)
-AGENT_MAP = {
-    "bob": BobAgent,
-    "carla": CarlaAgent,
-    "dave": DaveAgent,
-    "alice": AliceAgent,
-}
-
 class OpenClawElite:
     """The autonomous multi-agent AI workforce."""
 
     def __init__(self):
         self.config = Config()
         self.gateways = {}
-        self.agents = {}
         self.memory = get_memory()
         self.router = get_router()
         self.verifier = get_verifier()
@@ -77,14 +65,8 @@ class OpenClawElite:
         errors = Config.validate()
         if errors:
             logger.error(f"Configuration errors: {errors}")
-
-        # Initialize specialist agents (legacy)
-        for agent_id, agent_class in AGENT_MAP.items():
-            try:
-                self.agents[agent_id] = agent_class()
-                logger.info(f"Agent {agent_id} initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize agent {agent_id}: {e}")
+            for key, msg in errors.items():
+                logger.error(f"  - {key}: {msg}")
 
         # Initialize gateways
         await self._init_gateways()
@@ -109,7 +91,7 @@ class OpenClawElite:
                 active_bots = sum(1 for t in telegram_tokens if t)
                 logger.info(f"Telegram Gateway initialized ({active_bots} bot(s))")
             except Exception as e:
-                logger.error(f"Failed to init Telegram: {e}")
+                logger.error(f"Failed to init Telegram: {e}", exc_info=True)
 
         # Discord
         if Config.DISCORD_TOKEN:
@@ -117,7 +99,7 @@ class OpenClawElite:
                 self.gateways["discord"] = DiscordGateway(self)
                 logger.info("Discord Gateway initialized")
             except Exception as e:
-                logger.error(f"Failed to init Discord: {e}")
+                logger.error(f"Failed to init Discord: {e}", exc_info=True)
 
         # Slack
         if Config.SLACK_BOT_TOKEN and Config.SLACK_APP_TOKEN:
@@ -125,10 +107,10 @@ class OpenClawElite:
                 self.gateways["slack"] = SlackGateway(self)
                 logger.info("Slack Gateway initialized")
             except Exception as e:
-                logger.error(f"Failed to init Slack: {e}")
+                logger.error(f"Failed to init Slack: {e}", exc_info=True)
 
     async def route_message(self, platform: str, user_id: str, username: str,
-                           message: str, channel_id: str) -> str:
+                            message: str, channel_id: str) -> str:
         """Route incoming message through the full Elite pipeline."""
         logger.info(f"[{platform}] {username}: {message}")
 
@@ -172,8 +154,7 @@ class OpenClawElite:
         return {
             "uptime_seconds": int(uptime),
             "gateways": list(self.gateways.keys()),
-            "agents": list(self.agents.keys()),
-            "dispatch_agents": list(AGENT_DISPATCH.keys()),
+            "agents": list(AGENT_DISPATCH.keys()),
             "tasks_total": len(self.memory.get_open_tasks()),
             "tasks_done": len([t for t in self.memory.get_open_tasks() if t["status"] == "completed"]),
             "tasks_failed": len([t for t in self.memory.get_open_tasks() if t["status"] == "failed"]),
@@ -188,10 +169,17 @@ class OpenClawElite:
         # Start all gateways
         tasks = []
         for name, gateway in self.gateways.items():
-            tasks.append(asyncio.create_task(gateway.start()))
+            tasks.append(asyncio.create_task(gateway.start(), name=f"gateway_{name}"))
 
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            # FIXED: Log exceptions from gather instead of swallowing
+            for i, result in enumerate(results):
+                task_name = tasks[i].get_name()
+                if isinstance(result, Exception):
+                    logger.error(f"Gateway {task_name} crashed: {result}", exc_info=True)
+                else:
+                    logger.info(f"Gateway {task_name} exited normally")
         else:
             # Keep alive if no gateways
             logger.warning("No gateways configured. Bot is idle.")

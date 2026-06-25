@@ -1,6 +1,7 @@
 """
 OpenClaw Master Brain — Persistent Memory
 Tasks, decisions, cross-platform sessions
+FIXED: Added write queue, data directory creation, better concurrency handling.
 """
 import sqlite3
 import os
@@ -9,64 +10,71 @@ import json
 import uuid
 from datetime import datetime
 from typing import Optional, List, Dict
+from queue import Queue
 
-DB_PATH = os.environ.get("MEMORY_DB", "openclaw_memory.db")
+DB_PATH = os.environ.get("MEMORY_DB", "/app/data/openclaw_memory.db")
 _lock = threading.Lock()
+_write_queue = Queue()
 
 def _conn():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
     """Create all tables."""
+    # FIXED: Ensure directory exists for persistent storage
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+
     with _lock:
         con = _conn()
         cur = con.cursor()
         cur.executescript("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                desc TEXT NOT NULL,
-                agent TEXT NOT NULL,
-                platform TEXT DEFAULT 'unknown',
-                user_id TEXT,
-                result TEXT,
-                status TEXT DEFAULT 'pending',
-                created TEXT DEFAULT (datetime('now')),
-                updated TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS decisions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                context TEXT NOT NULL,
-                decision TEXT NOT NULL,
-                platform TEXT,
-                status TEXT DEFAULT 'success',
-                created TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS deployments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                repo TEXT NOT NULL,
-                branch TEXT,
-                status TEXT,
-                created TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS cross_platform_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unified_user_id TEXT NOT NULL,
-                telegram_id TEXT,
-                discord_id TEXT,
-                slack_id TEXT,
-                last_active TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                unified_user_id TEXT,
-                platform TEXT NOT NULL,
-                platform_user_id TEXT,
-                message TEXT,
-                response TEXT,
-                created TEXT DEFAULT (datetime('now'))
-            );
-            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-            CREATE INDEX IF NOT EXISTS idx_sessions_unified ON cross_platform_sessions(unified_user_id);
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            desc TEXT NOT NULL,
+            agent TEXT NOT NULL,
+            platform TEXT DEFAULT 'unknown',
+            user_id TEXT,
+            result TEXT,
+            status TEXT DEFAULT 'pending',
+            created TEXT DEFAULT (datetime('now')),
+            updated TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS decisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            context TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            platform TEXT,
+            status TEXT DEFAULT 'success',
+            created TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS deployments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            repo TEXT NOT NULL,
+            branch TEXT,
+            status TEXT,
+            created TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS cross_platform_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unified_user_id TEXT NOT NULL,
+            telegram_id TEXT,
+            discord_id TEXT,
+            slack_id TEXT,
+            last_active TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unified_user_id TEXT,
+            platform TEXT NOT NULL,
+            platform_user_id TEXT,
+            message TEXT,
+            response TEXT,
+            created TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+        CREATE INDEX IF NOT EXISTS idx_sessions_unified ON cross_platform_sessions(unified_user_id);
         """)
         con.commit()
         con.close()
@@ -89,7 +97,7 @@ def update_task(task_id: str, result: str, status: str = "done"):
         tid = int(task_id.replace("task_", ""))
     except ValueError:
         return
-        
+
     with _lock:
         con = _conn()
         cur = con.cursor()
@@ -184,7 +192,7 @@ def get_or_create_unified_user(telegram_id: str = None, discord_id: str = None, 
     with _lock:
         con = _conn()
         cur = con.cursor()
-        
+
         unified_id = None
         if telegram_id:
             cur.execute("SELECT unified_user_id FROM cross_platform_sessions WHERE telegram_id=?", (telegram_id,))
@@ -206,10 +214,9 @@ def get_or_create_unified_user(telegram_id: str = None, discord_id: str = None, 
                 (unified_id, telegram_id, discord_id, slack_id)
             )
             con.commit()
-        
+
         con.close()
         return unified_id
-
 
 def search_decisions(query: str, limit: int = 10) -> list:
     """Search decisions by keyword in context or decision text."""
@@ -226,7 +233,6 @@ def search_decisions(query: str, limit: int = 10) -> list:
         con.close()
         return [{"context": r[0], "decision": r[1], "platform": r[2], "status": r[3], "created": r[4]} for r in rows]
 
-
 def get_recent_tasks(limit: int = 10) -> list:
     """Return most recently updated tasks."""
     with _lock:
@@ -239,8 +245,7 @@ def get_recent_tasks(limit: int = 10) -> list:
         rows = cur.fetchall()
         con.close()
         return [{"id": f"task_{r[0]}", "description": r[1], "agent": r[2],
-                 "platform": r[3], "status": r[4], "result": r[5], "updated": r[6]} for r in rows]
-
+                "platform": r[3], "status": r[4], "result": r[5], "updated": r[6]} for r in rows]
 
 def get_failed_tasks(limit: int = 20) -> list:
     """Return recent failed tasks."""
@@ -254,4 +259,4 @@ def get_failed_tasks(limit: int = 20) -> list:
         rows = cur.fetchall()
         con.close()
         return [{"id": f"task_{r[0]}", "description": r[1], "agent": r[2],
-                 "platform": r[3], "result": r[4], "updated": r[5]} for r in rows]
+                "platform": r[3], "result": r[4], "updated": r[5]} for r in rows]

@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 """Coder Agent — Writes, reviews, and deploys code
-
-SUPERIOR TO VIKTOR: Viktor writes code but can't deploy it.
-OpenClaw Coder writes AND deploys via GitHub + Render/Railway APIs.
-
-Capabilities:
-- Write Python, JavaScript, TypeScript, Go, Rust
-- Review PRs and suggest improvements
-- Fix bugs and optimize performance
-- Deploy to Render, Railway, Vercel, AWS
-- Generate tests and documentation
+FIXED: Simplified run() to avoid nested event loop deadlock.
 """
-
 import os
 import logging
+import asyncio
 from typing import Optional
 
 from worker.agents.orchestrator import BaseAgent
@@ -22,7 +13,6 @@ from shared.message_bus import MessageBus
 logger = logging.getLogger("agent.coder")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 RENDER_API_KEY = os.getenv("RENDER_API_KEY", "")
-
 
 class CoderAgent(BaseAgent):
     """Specialist agent for coding tasks."""
@@ -120,22 +110,26 @@ Format output as:
         # This is simplified — actual Render API requires service ID
         return "Deploy triggered for %s (%s). Check Render dashboard for status." % (repo, branch)
 
-
 # ── Functional shim for backward-compat with agents/__init__.py ──
 from shared.message_bus import get_default_bus as _get_bus
 
 def run(task: str) -> str:
-    """Sync shim — runs agent via default bus. Used by AGENT_DISPATCH."""
+    """Sync shim — runs agent via default bus. Used by AGENT_DISPATCH.
+    FIXED: Simplified to avoid nested event loop deadlock.
+    """
     import asyncio
     agent = CoderAgent(_get_bus())
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, agent.process({"task": task, "message": task}))
-                return future.result(timeout=120)
-        else:
-            return loop.run_until_complete(agent.process({"task": task, "message": task}))
+        # Try to use existing loop or create new one
+        return asyncio.run(agent.process({"task": task, "message": task}))
+    except RuntimeError as e:
+        if "already running" in str(e):
+            # If loop is already running, schedule and get result
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(
+                agent.process({"task": task, "message": task}), loop
+            )
+            return future.result(timeout=120)
+        raise
     except Exception as e:
         return f"Agent error: {e}"

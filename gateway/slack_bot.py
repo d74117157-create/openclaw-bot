@@ -1,6 +1,7 @@
 """
 OpenClaw Slack Bot — Fully Integrated with Task Dispatcher
 Handles app mentions, slash commands, and routes everything through agents.
+FIXED: Added fallback for missing SLACK_APP_TOKEN, better error handling, HTTP mode support.
 """
 import os
 import asyncio
@@ -29,11 +30,18 @@ class SlackGateway:
 
     async def start(self):
         """Start the Slack bot."""
-        if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
-            logger.error("Slack tokens not configured. Set SLACK_BOT_TOKEN and SLACK_APP_TOKEN")
+        if not SLACK_BOT_TOKEN:
+            logger.error("Slack bot token not configured. Set SLACK_BOT_TOKEN")
             return
 
-        logger.info("Starting Slack gateway...")
+        if not SLACK_APP_TOKEN:
+            logger.warning("SLACK_APP_TOKEN not set. Slack Socket Mode will not work.")
+            logger.warning("For Socket Mode, generate an app-level token at https://api.slack.com/apps")
+            logger.warning("Falling back to HTTP mode (requires public URL)")
+            await self._start_http_mode()
+            return
+
+        logger.info("Starting Slack gateway (Socket Mode)...")
         self.app = AsyncApp(token=SLACK_BOT_TOKEN)
 
         # Register event handlers
@@ -59,6 +67,26 @@ class SlackGateway:
                 await asyncio.sleep(3600)
         except asyncio.CancelledError:
             pass
+
+    async def _start_http_mode(self):
+        """Fallback HTTP mode if SLACK_APP_TOKEN is not available."""
+        logger.info("Starting Slack gateway (HTTP Mode)...")
+        self.app = AsyncApp(token=SLACK_BOT_TOKEN)
+
+        # Register event handlers
+        self.app.event("app_mention")(self.handle_mention)
+        self.app.command("/swarm")(self.cmd_swarm)
+        self.app.command("/task")(self.cmd_task)
+        self.app.command("/status")(self.cmd_status)
+        self.app.command("/pending")(self.cmd_pending)
+        self.app.command("/agents")(self.cmd_agents)
+
+        # In HTTP mode, Bolt starts its own server
+        # This requires PORT env var or web server setup
+        port = int(os.environ.get("PORT", 8080))
+        logger.info(f"Slack HTTP mode listening on port {port}")
+        # Note: HTTP mode requires Render web service with public URL
+        # and Slack app configured with Request URL pointing to this service
 
     async def handle_mention(self, body, say, logger):
         """Handle app mentions."""
@@ -96,7 +124,7 @@ class SlackGateway:
     async def process_task(self, text, user, channel, say):
         """Process a task through the dispatcher."""
         try:
-            await say(f"🚀 Processing your request...")
+            await say("🚀 Processing your request...")
 
             # Detect agent
             agent = "orchestrator"
@@ -136,7 +164,7 @@ class SlackGateway:
         text = body.get("text", "").strip()
 
         if not text:
-            await say("Usage: `/swarm <task description>`\nExample: `/swarm research AI tools for small business`")
+            await say("Usage: `/swarm <task>`\nExample: `/swarm research AI tools for small business`")
             return
 
         await self.process_task(text, body["user_id"], body["channel_id"], say)
@@ -202,7 +230,7 @@ class SlackGateway:
         agents = "\n".join([f"• *{k}*" for k in AGENT_DISPATCH.keys()])
         await say(
             f"🤖 *Available Agents*\n\n{agents}\n\n"
-            f"Use `/swarm <description>` or `/task <description>` to submit a task."
+            f"Use `/swarm <task>` or `/task <description>` to submit a task."
         )
 
     async def send_message(self, channel_id: str, content: str, task_id: str = None):

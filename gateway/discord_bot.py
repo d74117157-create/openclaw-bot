@@ -1,7 +1,7 @@
 """
 OpenClaw - gateway/discord_bot.py
 Discord gateway with full slash commands, task dispatcher integration,
-and multi-agent routing.
+multi-agent routing, and AUTO-RECONNECT.
 """
 import os
 import asyncio
@@ -21,12 +21,14 @@ DISCORD_TOKEN = os.environ.get("DISCORD_TOKEN", "")
 DISCORD_GUILD_ID = os.environ.get("DISCORD_GUILD_ID", "")
 
 class DiscordGateway:
-    """Discord interface for OpenClaw swarm with slash commands."""
+    """Discord interface for OpenClaw swarm with slash commands and auto-reconnect."""
 
     def __init__(self, swarm=None):
         self.swarm = swarm
         self.token = DISCORD_TOKEN
         self.guild_id = DISCORD_GUILD_ID
+        self._reconnect_delay = 5
+        self._max_reconnect_delay = 300
 
         intents = discord.Intents.default()
         intents.message_content = True
@@ -199,6 +201,7 @@ class DiscordGateway:
     async def on_ready(self):
         """Called when bot is ready."""
         logger.info(f"Discord Gateway ready as {self.client.user}")
+        self._reconnect_delay = 5  # Reset reconnect delay on successful connection
 
         # Sync commands
         try:
@@ -209,7 +212,7 @@ class DiscordGateway:
                 logger.info(f"Commands synced to guild {self.guild_id}")
             else:
                 await self.tree.sync()
-                logger.info("Commands synced globally")
+                logger.info("Commands synced globally (may take up to 1 hour)")
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
 
@@ -255,13 +258,23 @@ class DiscordGateway:
             await message.reply(embed=embed)
 
     async def start(self):
-        """Start the Discord gateway."""
+        """Start the Discord gateway with auto-reconnect."""
         if not self.token:
             logger.error("No Discord token configured")
             return
 
-        logger.info("Starting Discord gateway...")
-        await self.client.start(self.token)
+        while True:
+            try:
+                logger.info("Starting Discord gateway...")
+                await self.client.start(self.token, reconnect=True)
+            except discord.errors.LoginFailure as e:
+                logger.error(f"Discord login failed (invalid token): {e}")
+                break  # Don't retry on auth failure
+            except Exception as e:
+                logger.error(f"Discord connection lost: {e}")
+                logger.info(f"Reconnecting in {self._reconnect_delay} seconds...")
+                await asyncio.sleep(self._reconnect_delay)
+                self._reconnect_delay = min(self._reconnect_delay * 2, self._max_reconnect_delay)
 
     async def send_message(self, channel_id: str, content: str, task_id: str = None):
         """Send message to Discord channel."""

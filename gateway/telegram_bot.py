@@ -1,6 +1,7 @@
 """
 OpenClaw Telegram Bot — Multi-Bot Swarm Integration
 Handles 3 bot instances with full task dispatcher integration.
+FIXED: Non-blocking async event loop, proper error isolation per bot, auto-reconnect.
 """
 import os
 import asyncio
@@ -45,7 +46,29 @@ class TelegramGateway:
 
         logger.info(f"Starting {len(self.tokens)} Telegram bot(s)...")
 
+        tasks = []
         for bot_num, token in self.tokens:
+            tasks.append(asyncio.create_task(self._run_bot(bot_num, token), name=f"telegram_bot_{bot_num}"))
+
+        # Wait for all bots (if one fails, others keep running)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Log any failures
+        for i, result in enumerate(results):
+            task_name = tasks[i].get_name()
+            if isinstance(result, Exception):
+                logger.error(f"{task_name} crashed: {result}", exc_info=True)
+            else:
+                logger.info(f"{task_name} exited normally")
+
+        logger.warning("All Telegram bots have exited")
+
+    async def _run_bot(self, bot_num: int, token: str):
+        """Run a single Telegram bot with proper error isolation and auto-reconnect."""
+        reconnect_delay = 5
+        max_reconnect_delay = 300
+
+        while True:
             try:
                 app = Application.builder().token(token).build()
 
@@ -63,18 +86,18 @@ class TelegramGateway:
                 self.applications.append(app)
                 logger.info(f"Telegram Bot {bot_num} started")
 
-            except Exception as e:
-                logger.error(f"Failed to start Telegram Bot {bot_num}: {e}")
+                # Reset reconnect delay on successful connection
+                reconnect_delay = 5
 
-        # Keep running
-        try:
-            while True:
-                await asyncio.sleep(3600)
-        except asyncio.CancelledError:
-            pass
-        finally:
-            for app in self.applications:
-                await app.stop()
+                # Non-blocking keep-alive using asyncio.Event
+                stop_event = asyncio.Event()
+                await stop_event.wait()
+
+            except Exception as e:
+                logger.error(f"Telegram Bot {bot_num} crashed: {e}", exc_info=True)
+                logger.info(f"Reconnecting Telegram Bot {bot_num} in {reconnect_delay} seconds...")
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, max_reconnect_delay)
 
     def make_cmd_start(self, bot_num):
         async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

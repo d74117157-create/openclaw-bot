@@ -1,7 +1,9 @@
 """
 OpenClaw Business Agent — executes the core mission:
 research opportunities, score them, generate leads, plan content.
+FIXED: Added LLM API key validation with clear error messages.
 """
+import os
 import logging
 from worker.ai_worker import _chat
 from shared.mission import (
@@ -12,9 +14,29 @@ from memory import save_decision
 
 logger = logging.getLogger(__name__)
 
+# Validate LLM keys at module load time
+_LLMS_CONFIGURED = bool(os.environ.get("GROQ_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+if not _LLMS_CONFIGURED:
+    logger.warning("⚠️ No LLM API key found (GROQ_API_KEY or OPENAI_API_KEY). Business agent will return error messages.")
+
+def _check_llm():
+    """Check if LLM is configured before calling."""
+    if not _LLMS_CONFIGURED:
+        return (
+            "❌ **LLM Not Configured**\n\n"
+            "No API key found. Please set one of these environment variables in Render:\n"
+            "- `GROQ_API_KEY` (recommended, fast & free tier available)\n"
+            "- `OPENAI_API_KEY` (backup option)\n\n"
+            "Get a free Groq key at: https://console.groq.com/keys"
+        )
+    return None
 
 def run(task: str) -> str:
     """Main entry point — routes task to appropriate business function."""
+    err = _check_llm()
+    if err:
+        return err
+
     task_lower = task.lower()
 
     if any(w in task_lower for w in ["opportunity", "niche", "business idea", "find"]):
@@ -29,7 +51,6 @@ def run(task: str) -> str:
         return evaluate_opportunity(task)
     else:
         return general_strategy(task)
-
 
 def research_opportunity(task: str) -> str:
     tier1 = "\n".join(f"- {x}" for x in MISSION["opportunity_tiers"][1])
@@ -64,7 +85,6 @@ Be specific, realistic, and actionable. End with a score out of 100."""
 
     return result
 
-
 def generate_leads(task: str) -> str:
     signals = "\n".join(f"- {s}" for s in LEAD_SIGNALS)
     prompt = f"""You are OpenClaw lead generation agent.
@@ -83,7 +103,6 @@ Generate a practical lead generation plan. Include:
 Be specific — include actual search queries, tools, and scripts."""
 
     return _chat(AGENT_SYSTEM_PROMPT, prompt)
-
 
 def create_content(task: str) -> str:
     priorities = "\n".join(f"- {p}" for p in CONTENT_PRIORITIES)
@@ -105,7 +124,6 @@ Content priorities:
 Make content viral-worthy, educational, and business-focused."""
 
     return _chat(AGENT_SYSTEM_PROMPT, prompt)
-
 
 def generate_report(task: str) -> str:
     targets = MISSION["weekly_targets"]
@@ -133,7 +151,6 @@ Be honest about gaps. Recommend specific fixes."""
 
     return _chat(AGENT_SYSTEM_PROMPT, prompt)
 
-
 def evaluate_opportunity(task: str) -> str:
     prompt = f"""You are OpenClaw opportunity evaluator.
 
@@ -141,7 +158,7 @@ Task: {task}
 
 Score this opportunity 0-100 using these criteria:
 - ROI potential (30 pts)
-- Difficulty/ease of execution (20 pts)  
+- Difficulty/ease of execution (20 pts)
 - Time to first revenue (25 pts)
 - Monthly revenue ceiling (15 pts)
 - Market demand signals (10 pts)
@@ -160,7 +177,6 @@ Return:
         status="evaluated"
     )
     return result
-
 
 def general_strategy(task: str) -> str:
     prompt = f"""You are OpenClaw, autonomous digital business operator.

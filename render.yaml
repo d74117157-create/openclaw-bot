@@ -1,9 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: openclaw-elite
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: DISCORD_TOKEN
         sync: false
@@ -21,6 +22,12 @@ services:
         value: gpt-4o
       - key: PRIMARY_LLM
         value: groq
+      - key: TELEGRAM_BOT1_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT2_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT3_TOKEN
+        sync: false
       - key: SLACK_BOT_TOKEN
         sync: false
       - key: SLACK_APP_TOKEN
@@ -39,6 +46,10 @@ services:
         value: /app/data/openclaw_memory.db
       - key: MONITOR_URLS
         sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
     disk:
       name: openclaw-data
       mountPath: /app/data
