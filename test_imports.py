@@ -33,7 +33,7 @@ modules = [
     "worker.self_test",
     "worker.task_dispatcher",
 
-    # Worker — Agents (all new ones included)
+    # Worker — Agents (ALL agents including new ones)
     "worker.agents.bob",
     "worker.agents.carla",
     "worker.agents.dave",
