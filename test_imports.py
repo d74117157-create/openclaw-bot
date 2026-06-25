@@ -33,7 +33,7 @@ modules = [
     "worker.self_test",
     "worker.task_dispatcher",
 
-    # Worker — Agents (ALL agents including new ones)
+    # Worker — Agents (ALL agents)
     "worker.agents.bob",
     "worker.agents.carla",
     "worker.agents.dave",
@@ -66,14 +66,14 @@ for mod in modules:
         __import__(mod)
         print(f"  [OK] {mod}")
     except ValueError as e:
-        if "DISCORD_TOKEN" in str(e) or "SLACK" in str(e):
+        if "DISCORD_TOKEN" in str(e) or "SLACK" in str(e) or "TELEGRAM" in str(e):
             print(f"  [OK] {mod} (requires env vars in production)")
         else:
             print(f"  [FAIL] {mod}: {e}")
             failed.append((mod, str(e)))
     except ModuleNotFoundError as e:
         # Optional modules that may not exist yet
-        optional = ["memory.core", "gateway.discord_tasks", "worker.task_dispatcher"]
+        optional = ["memory.core", "gateway.discord_tasks"]
         if any(opt in str(e) for opt in optional):
             print(f"  [WARN] {mod}: Module not found (optional, skipping)")
         else:
