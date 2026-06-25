@@ -14,6 +14,7 @@ class Config:
     # ─── TELEGRAM (2 bots) ─────────────────────────────────────────────
     TELEGRAM_BOT1_TOKEN: str = os.environ.get("TELEGRAM_BOT1_TOKEN", "")
     TELEGRAM_BOT2_TOKEN: str = os.environ.get("TELEGRAM_BOT2_TOKEN", "")
+    TELEGRAM_BOT3_TOKEN = os.environ.get("TELEGRAM_BOT3_TOKEN", "")
     TELEGRAM_ALLOWED_USERS: List[int] = []
     if users := os.environ.get("TELEGRAM_ALLOWED_USERS", ""):
         try:
