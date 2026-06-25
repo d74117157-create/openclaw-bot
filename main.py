@@ -3,7 +3,7 @@
 OpenClaw Elite — Autonomous Multi-Agent AI System
 AI Workforce, not a chatbot.
 
-Fully Integrated: Discord, Telegram, Slack, Task Dispatcher, All Agents
+Fully Integrated: Discord, 3x Telegram, Slack, Task Dispatcher, All Agents
 """
 import os
 import sys
@@ -97,11 +97,17 @@ class OpenClawElite:
 
     async def _init_gateways(self):
         """Initialize all platform gateways."""
-        # Telegram
-        if Config.TELEGRAM_BOT1_TOKEN or Config.TELEGRAM_BOT2_TOKEN:
+        # Telegram (supports up to 3 bots)
+        telegram_tokens = [
+            os.environ.get("TELEGRAM_BOT1_TOKEN", ""),
+            os.environ.get("TELEGRAM_BOT2_TOKEN", ""),
+            os.environ.get("TELEGRAM_BOT3_TOKEN", ""),
+        ]
+        if any(telegram_tokens):
             try:
                 self.gateways["telegram"] = TelegramGateway(self)
-                logger.info("Telegram Gateway initialized")
+                active_bots = sum(1 for t in telegram_tokens if t)
+                logger.info(f"Telegram Gateway initialized ({active_bots} bot(s))")
             except Exception as e:
                 logger.error(f"Failed to init Telegram: {e}")
 
