@@ -1,7 +1,24 @@
-# 🐝 OpenClaw Superswarm
+# 🐝 OpenClaw Superswarm v2.0
 
 Multi-agent bot swarm with Discord + 3× Telegram + Slack + AI orchestration.
 **Dual-deployment:** Oracle VM (primary) + Render (fallback).
+
+## Architecture
+
+```
+                    ┌─────────────────┐
+                    │   GitHub Push   │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+      ┌──────────────┐ ┌──────────┐ ┌──────────────┐
+      │  Oracle VM   │ │  Render  │ │  Health      │
+      │  (Primary)   │ │ (Backup) │ │  Monitor     │
+      │  Docker      │ │  Web     │ │  /health     │
+      │  Compose     │ │  Service │ │  /swarm      │
+      └──────────────┘ └──────────┘ └──────────────┘
+```
 
 ## Quick Start
 
@@ -10,22 +27,22 @@ docker compose up -d
 curl http://localhost:8000/health
 ```
 
-## Architecture
+## API Endpoints
 
-- **FastAPI** health server + swarm API
-- **Discord Bot** — auto-reconnect, `!swarm` / `!agent` commands
-- **Telegram Manager** — 3 bots, `/swarm` / `/agent` commands
-- **Slack Bot** — Socket Mode, `/swarm` / `/agent` slash commands
-- **6 AI Agents** — Coder, Researcher, Ops, Growth, QA, Orchestrator
-- **Tool Registry** — `defineTool` pattern for dynamic tool calling
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Swarm status |
+| `/health` | GET | Health check |
+| `/health/ready` | GET | Readiness probe |
+| `/health/live` | GET | Liveness probe |
+| `/swarm/status` | GET | Full swarm status |
+| `/swarm/reload` | POST | Hot-reload agents |
 
-## GitHub Actions Workflows
+## Bot Commands
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `deploy.yml` | Push to `main` | Deploy to Oracle VM (primary) |
-| `setup-oracle-vm.yml` | Manual | One-click provision Oracle VM |
-| `deploy-to-render.yml` | Push to `main` | Deploy to Render (backup) |
+### Discord: `!swarm`, `!agent <query>`
+### Telegram: `/swarm`, `/agent <query>`
+### Slack: `/swarm`, `/agent <query>`
 
 ## License
 MIT
