@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """OpenClaw Superswarm — Multi-Agent Bot Swarm v2.0"""
-import os, asyncio, logging
+import os, sys, asyncio, logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -9,14 +9,24 @@ from core.swarm_orchestrator import SwarmOrchestrator
 from core.health import health_router
 import uvicorn
 
-# Create dirs BEFORE logging setup
-os.makedirs("logs", exist_ok=True)
+# Create dirs BEFORE logging setup — try multiple locations
+for log_dir in ["/app/logs", "./logs", "/tmp/openclaw_logs"]:
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        os.environ["OPENCLAW_LOG_DIR"] = log_dir
+        break
+    except OSError:
+        continue
+else:
+    os.environ["OPENCLAW_LOG_DIR"] = "/tmp"
+
+log_path = os.path.join(os.environ["OPENCLAW_LOG_DIR"], "openclaw.log")
 os.makedirs("data", exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-    handlers=[logging.FileHandler("logs/openclaw.log"), logging.StreamHandler()]
+    handlers=[logging.FileHandler(log_path), logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("openclaw")
 
