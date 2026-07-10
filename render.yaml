@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: openclaw-bot
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python openclaw/main_async.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: BRAIN_CHANNEL
+        value: brain
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama3-70b-8192
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: SLACK_CHANNEL
+        value: ops
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        sync: false
+      - key: MEMORY_DB
+        value: openclaw_memory.db
+      - key: BROWSER_HEADLESS
+        value: true
+      - key: SCREENSHOT_DIR
+        value: /tmp/openclaw_screenshots
+      - key: HEALTH_PORT
+        value: 8080
+      - key: PORT
+        value: 3000
+      - key: REDIS_URL
+        sync: false
+      - key: OPENCLAW_API_KEY
+        sync: false
+      - key: OWNER_ID
+        sync: false
+      - key: WEB_PORT
+        value: 8080

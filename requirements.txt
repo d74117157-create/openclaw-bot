@@ -1,0 +1,8 @@
+discord.py==2.3.2
+slack-bolt
+slack-sdk
+requests
+python-dotenv
+groq
+fastapi
+uvicorn[standard]

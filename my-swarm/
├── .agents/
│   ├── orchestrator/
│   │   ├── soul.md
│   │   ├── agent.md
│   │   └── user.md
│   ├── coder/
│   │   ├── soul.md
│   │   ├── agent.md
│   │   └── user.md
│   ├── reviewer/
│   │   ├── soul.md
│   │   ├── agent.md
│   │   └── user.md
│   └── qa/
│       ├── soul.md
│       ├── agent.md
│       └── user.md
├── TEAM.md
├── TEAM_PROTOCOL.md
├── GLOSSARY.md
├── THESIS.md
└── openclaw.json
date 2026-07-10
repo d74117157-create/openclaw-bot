@@ -1,0 +1,23 @@
+my-swarm/
+├── .agents/
+│   ├── orchestrator/
+│   │   ├── soul.md
+│   │   ├── agent.md
+│   │   └── user.md
+│   ├── coder/
+│   │   ├── soul.md
+│   │   ├── agent.md
+│   │   └── user.md
+│   ├── reviewer/
+│   │   ├── soul.md
+│   │   ├── agent.md
+│   │   └── user.md
+│   └── qa/
+│       ├── soul.md
+│       ├── agent.md
+│       └── user.md
+├── TEAM.md
+├── TEAM_PROTOCOL.md
+├── GLOSSARY.md
+├── THESIS.md
+└── openclaw.json

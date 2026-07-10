@@ -1,0 +1,8 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "sh -c 'python gateway/brain_bot.py & python gateway/slack_bot.py & python bot_factory.py & wait'"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

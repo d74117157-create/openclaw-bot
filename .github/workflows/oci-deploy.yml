@@ -1,0 +1,73 @@
+name: Deploy to Oracle Cloud Infrastructure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.OCI_SSH_KEY }}
+
+      - name: Add host to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.OCI_VM_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to OCI VM
+        run: |
+          echo "Deploying to Oracle VM at ${{ secrets.OCI_VM_IP }}"
+
+          # Create deployment directory
+          ssh ${{ secrets.OCI_USER }}@${{ secrets.OCI_VM_IP }} "mkdir -p ~/openclaw-bot"
+
+          # Sync files (excluding .git)
+          rsync -avz --exclude='.git' --exclude='__pycache__'             ./ ${{ secrets.OCI_USER }}@${{ secrets.OCI_VM_IP }}:~/openclaw-bot/
+
+          # Install dependencies and restart
+          ssh ${{ secrets.OCI_USER }}@${{ secrets.OCI_VM_IP }} << 'EOF'
+            cd ~/openclaw-bot
+            python3 -m pip install -r requirements.txt
+
+            # Create systemd service if not exists
+            if [ ! -f /etc/systemd/system/openclaw.service ]; then
+              sudo tee /etc/systemd/system/openclaw.service > /dev/null << 'SERVICE'
+[Unit]
+Description=OpenClaw Bot Swarm
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/openclaw-bot
+Environment=PYTHONPATH=/home/ubuntu/openclaw-bot
+EnvironmentFile=/home/ubuntu/openclaw-bot/.env
+ExecStart=/usr/bin/python3 /home/ubuntu/openclaw-bot/openclaw/main_async.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+              sudo systemctl daemon-reload
+              sudo systemctl enable openclaw
+            fi
+
+            # Restart service
+            sudo systemctl restart openclaw
+
+            # Check status
+            sudo systemctl status openclaw --no-pager
+          EOF
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          curl -s http://${{ secrets.OCI_VM_IP }}:8080/health || echo "Health check may need a moment"
