@@ -9,14 +9,16 @@ from core.swarm_orchestrator import SwarmOrchestrator
 from core.health import health_router
 import uvicorn
 
+# Create dirs BEFORE logging setup
+os.makedirs("logs", exist_ok=True)
+os.makedirs("data", exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
     handlers=[logging.FileHandler("logs/openclaw.log"), logging.StreamHandler()]
 )
 logger = logging.getLogger("openclaw")
-os.makedirs("logs", exist_ok=True)
-os.makedirs("data", exist_ok=True)
 
 swarm = None
 
