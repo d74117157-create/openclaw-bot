@@ -9,7 +9,7 @@ from core.swarm_orchestrator import SwarmOrchestrator
 from core.health import health_router
 import uvicorn
 
-# Create dirs BEFORE logging setup — try multiple locations
+# Create dirs BEFORE logging setup
 for log_dir in ["/app/logs", "./logs", "/tmp/openclaw_logs"]:
     try:
         os.makedirs(log_dir, exist_ok=True)
@@ -70,4 +70,8 @@ async def swarm_reload():
     return {"message": "Swarm reloaded successfully"}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host=settings.APP_HOST, port=settings.APP_PORT, reload=settings.ENVIRONMENT == "development")
+    # Render sets PORT env var (default 10000)
+    port = int(os.environ.get("PORT", settings.APP_PORT))
+    host = "0.0.0.0"
+    logger.info(f"Starting server on {host}:{port}")
+    uvicorn.run("main:app", host=host, port=port, reload=False)
