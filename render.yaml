@@ -1,8 +1,10 @@
 services:
   - type: web
     name: openclaw-superswarm
-    runtime: docker
+    runtime: python
     plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DISCORD_TOKEN
         sync: false
@@ -23,13 +25,13 @@ services:
       - key: GOOGLE_API_KEY
         sync: false
       - key: REDIS_URL
-        value: redis://redis:6379/0
+        value: redis://localhost:6379/0
       - key: DATABASE_URL
-        value: postgresql://openclaw:openclaw_secret@db:5432/openclaw
+        value: postgresql://openclaw:openclaw_secret@localhost:5432/openclaw
       - key: APP_HOST
         value: 0.0.0.0
       - key: APP_PORT
-        value: 8000
+        value: 10000
       - key: ENVIRONMENT
         value: production
       - key: SWARM_MODE
