@@ -1,40 +1,40 @@
-version: '3.8'
-
+version: "3.8"
 services:
-  openclaw:
+  app:
     build: .
-    container_name: openclaw-bot
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
-    volumes:
-      - ./memory:/app/memory
-      - ./logs:/app/logs
-      - /tmp/openclaw_screenshots:/tmp/openclaw_screenshots
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Optional: Redis for caching
+    container_name: openclaw-superswarm
+    restart: always
+    ports: ["8000:8000"]
+    env_file: [".env"]
+    depends_on: [redis, db]
+    volumes: ["./logs:/app/logs", "./data:/app/data"]
+    networks: [openclaw-net]
   redis:
     image: redis:7-alpine
     container_name: openclaw-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-
+    restart: always
+    volumes: [redis_data:/data]
+    networks: [openclaw-net]
+  db:
+    image: postgres:16-alpine
+    container_name: openclaw-db
+    restart: always
+    environment:
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: openclaw_secret
+      POSTGRES_DB: openclaw
+    volumes: [pg_data:/var/lib/postgresql/data]
+    networks: [openclaw-net]
+  nginx:
+    image: nginx:alpine
+    container_name: openclaw-nginx
+    restart: always
+    ports: ["80:80", "443:443"]
+    volumes: ["./nginx.conf:/etc/nginx/nginx.conf:ro"]
+    depends_on: [app]
+    networks: [openclaw-net]
 volumes:
-  redis-data:
+  redis_data:
+  pg_data:
+networks:
+  openclaw-net: {driver: bridge}

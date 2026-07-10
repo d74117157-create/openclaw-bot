@@ -1,0 +1,58 @@
+name: Setup Oracle VM (One-Time)
+
+on:
+  workflow_dispatch:
+    inputs:
+      vm_host:
+        description: 'Oracle VM Public IP'
+        required: true
+      vm_user:
+        description: 'SSH User (default: ubuntu)'
+        required: true
+        default: 'ubuntu'
+
+env:
+  OCI_VM_HOST: ${{ github.event.inputs.vm_host }}
+  OCI_VM_USER: ${{ github.event.inputs.vm_user }}
+  OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "$OCI_SSH_KEY" > ~/.ssh/oci_vm_key
+          chmod 600 ~/.ssh/oci_vm_key
+          cat >> ~/.ssh/config <<EOF
+          Host oci-vm
+            HostName $OCI_VM_HOST
+            User $OCI_VM_USER
+            IdentityFile ~/.ssh/oci_vm_key
+            StrictHostKeyChecking no
+          EOF
+      - name: Provision Oracle VM
+        run: |
+          ssh oci-vm << 'REMOTE'
+            set -e
+            sudo apt-get update && sudo apt-get upgrade -y
+            sudo apt-get install -y ca-certificates curl gnupg git fail2ban ufw
+            sudo install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            sudo chmod a+r /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=\"$(dpkg --print-architecture)\" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \"$(. /etc/os-release && echo \"$$VERSION_CODENAME\")\" stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            sudo usermod -aG docker $OCI_VM_USER
+            sudo ufw allow 22/tcp; sudo ufw allow 80/tcp; sudo ufw allow 443/tcp; sudo ufw allow 8000/tcp
+            sudo ufw --force enable
+            cd ~
+            if [ ! -d "openclaw-superswarm" ]; then git clone https://github.com/${{ github.repository }}.git openclaw-superswarm; fi
+            mkdir -p ~/openclaw-superswarm/logs ~/openclaw-superswarm/data
+            echo "✅ Oracle VM provisioned. Log out and back in for docker group."
+          REMOTE
+      - name: Cleanup SSH
+        if: always()
+        run: rm -f ~/.ssh/oci_vm_key

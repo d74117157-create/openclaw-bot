@@ -1,49 +1,37 @@
 services:
   - type: web
-    name: openclaw-bot
-    runtime: python
-    plan: starter
-    buildCommand: pip install -r requirements.txt
-    startCommand: python openclaw/main_async.py
-    healthCheckPath: /health
+    name: openclaw-superswarm
+    runtime: docker
+    plan: standard
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
       - key: DISCORD_TOKEN
         sync: false
-      - key: BRAIN_CHANNEL
-        value: brain
-      - key: GROQ_API_KEY
+      - key: TELEGRAM_BOT1_TOKEN
         sync: false
-      - key: GROQ_MODEL
-        value: llama3-70b-8192
+      - key: TELEGRAM_BOT2_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT3_TOKEN
+        sync: false
       - key: SLACK_BOT_TOKEN
         sync: false
       - key: SLACK_APP_TOKEN
         sync: false
-      - key: SLACK_CHANNEL
-        value: ops
-      - key: SLACK_WEBHOOK_URL
+      - key: OPENAI_API_KEY
         sync: false
-      - key: GITHUB_TOKEN
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: GITHUB_REPO
+      - key: GOOGLE_API_KEY
         sync: false
-      - key: MEMORY_DB
-        value: openclaw_memory.db
-      - key: BROWSER_HEADLESS
-        value: true
-      - key: SCREENSHOT_DIR
-        value: /tmp/openclaw_screenshots
-      - key: HEALTH_PORT
-        value: 8080
-      - key: PORT
-        value: 3000
       - key: REDIS_URL
-        sync: false
-      - key: OPENCLAW_API_KEY
-        sync: false
-      - key: OWNER_ID
-        sync: false
-      - key: WEB_PORT
-        value: 8080
+        value: redis://redis:6379/0
+      - key: DATABASE_URL
+        value: postgresql://openclaw:openclaw_secret@db:5432/openclaw
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: 8000
+      - key: ENVIRONMENT
+        value: production
+      - key: SWARM_MODE
+        value: auto-reconnect
+    healthCheckPath: /health
