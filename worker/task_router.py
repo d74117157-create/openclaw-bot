@@ -1,4 +1,4 @@
-"""Smart task router — decides which agents to spawn."""
+"""OpenClaw — Smart task router. Decides which agents to spawn, browser execution, priority."""
 import re
 import json
 import logging
@@ -25,25 +25,18 @@ AGENT_TRIGGERS = {
     "memory": ["remember", "log", "track", "history", "past", "previous", "decisions", "what did", "record"],
 }
 
-ROUTER_SYSTEM = (
-    "You are a task router for an AI swarm. Given a task, output JSON:
-"
-    '{
+ROUTER_SYSTEM = """You are a task router for an AI swarm. Given a task, output JSON:
+{
   "needs_browser": true,
   "agents": ["agent1"],
   "priority": "high",
-'
-    '  "browser_task": "sub-task",
+  "browser_task": "sub-task",
   "github_issue": true,
   "slack_alert": true,
-'
-    '  "estimated_steps": 3
+  "estimated_steps": 3
 }
-'
-    "Agents: orchestrator, coder, reviewer, qa, ops, research, growth, memory, github, browser.
-"
-    "Return ONLY valid JSON."
-)
+Agents: orchestrator, coder, reviewer, qa, ops, research, growth, memory, github, browser.
+Return ONLY valid JSON."""
 
 
 class TaskRouter:
@@ -76,6 +69,8 @@ class TaskRouter:
             agents.append("reviewer")
         if needs_browser and "browser" not in agents:
             agents.append("browser")
+        if any(kw in task_lower for kw in AGENT_TRIGGERS["github"]) and "github" not in agents:
+            agents.append("github")
         priority = "high" if needs_browser else "medium"
         if any(kw in task_lower for kw in ["urgent", "asap", "critical", "emergency", "now"]):
             priority = "high"
