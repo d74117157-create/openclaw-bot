@@ -1,24 +1,119 @@
-"""
-OpenClaw — worker/github_agent.py
-Dedicated GitHub agent: executes real GitHub API calls driven by AI planning.
-"""
-import os, base64, json
+"""GitHub automation agent — branches, issues, PRs, workflows."""
+import os
+import base64
+import json
+import time
+import requests
+import logging
 from dotenv import load_dotenv
-from kernel import (
-    create_branch, create_issue, create_pull_request,
-    list_open_prs, list_open_issues, get_repo_info,
-    trigger_workflow, list_workflow_runs, add_pr_comment,
-    close_issue, ai_generate_github_action,
-    ai_review_pr_content, ai_generate_commit_message,
-    create_file, GITHUB_REPO
-)
 from worker.ai_worker import process_task
+from memory import save_decision
 
 load_dotenv()
+logger = logging.getLogger("openclaw.github")
+
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
+GITHUB_API = "https://api.github.com"
+
+HEADERS = {
+    "Authorization": f"Bearer {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+
+def _gh_get(path: str) -> dict:
+    r = requests.get(f"{GITHUB_API}/{path}", headers=HEADERS, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+def _gh_post(path: str, payload: dict) -> dict:
+    r = requests.post(f"{GITHUB_API}/{path}", headers=HEADERS, json=payload, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+def _gh_patch(path: str, payload: dict) -> dict:
+    r = requests.patch(f"{GITHUB_API}/{path}", headers=HEADERS, json=payload, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+def _gh_put(path: str, payload: dict) -> dict:
+    r = requests.put(f"{GITHUB_API}/{path}", headers=HEADERS, json=payload, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+def create_branch(repo: str, branch_name: str, from_branch: str = "main") -> dict:
+    ref_data = _gh_get(f"repos/{repo}/git/ref/heads/{from_branch}")
+    sha = ref_data["object"]["sha"]
+    result = _gh_post(f"repos/{repo}/git/refs", {"ref": f"refs/heads/{branch_name}", "sha": sha})
+    save_decision(f"Created branch {branch_name} from {from_branch}", f"Repo: {repo}", "success")
+    return result
+
+
+def create_issue(repo: str, title: str, body: str, labels: list = None) -> dict:
+    payload = {"title": title, "body": body}
+    if labels:
+        payload["labels"] = labels
+    result = _gh_post(f"repos/{repo}/issues", payload)
+    save_decision(f"Created issue: {title}", f"Repo: {repo}", "success")
+    return result
+
+
+def create_pull_request(repo: str, title: str, body: str, head: str, base: str = "main") -> dict:
+    result = _gh_post(f"repos/{repo}/pulls", {"title": title, "body": body, "head": head, "base": base})
+    save_decision(f"Created PR: {title}", f"Repo: {repo} | {head}>{base}", "success")
+    return result
+
+
+def list_open_prs(repo: str) -> list:
+    return _gh_get(f"repos/{repo}/pulls?state=open")
+
+
+def list_open_issues(repo: str) -> list:
+    return _gh_get(f"repos/{repo}/issues?state=open")
+
+
+def get_repo_info(repo: str) -> dict:
+    return _gh_get(f"repos/{repo}")
+
+
+def create_file(repo: str, path: str, content_b64: str, message: str, branch: str = "main") -> dict:
+    return _gh_put(f"repos/{repo}/contents/{path}", {"message": message, "content": content_b64, "branch": branch})
+
+
+def trigger_workflow(repo: str, workflow_id: str, ref: str = "main", inputs: dict = None) -> dict:
+    payload = {"ref": ref}
+    if inputs:
+        payload["inputs"] = inputs
+    r = requests.post(
+        f"{GITHUB_API}/repos/{repo}/actions/workflows/{workflow_id}/dispatches",
+        headers=HEADERS, json=payload, timeout=15
+    )
+    r.raise_for_status()
+    return {"status": "triggered", "workflow": workflow_id}
+
+
+def list_workflow_runs(repo: str, limit: int = 5) -> list:
+    data = _gh_get(f"repos/{repo}/actions/runs?per_page={limit}")
+    return data.get("workflow_runs", [])
+
+
+def add_pr_comment(repo: str, pr_number: int, comment: str) -> dict:
+    return _gh_post(f"repos/{repo}/issues/{pr_number}/comments", {"body": comment})
+
+
+def close_issue(repo: str, issue_number: int, comment: str = "") -> dict:
+    if comment:
+        _gh_post(f"repos/{repo}/issues/{issue_number}/comments", {"body": comment})
+    return _gh_patch(f"repos/{repo}/issues/{issue_number}", {"state": "closed"})
 
 
 class GitHubAgent:
-
     def __init__(self, repo: str = None):
         self.repo = repo or GITHUB_REPO
 
@@ -32,11 +127,8 @@ class GitHubAgent:
             runs = list_workflow_runs(self.repo, 3)
             summary = (
                 f"Repo: {info['full_name']}\n"
-                f"Stars: {info['stargazers_count']} | "
-                f"Forks: {info['forks_count']} | "
-                f"Open issues: {info['open_issues_count']}\n"
-                f"Default branch: {info['default_branch']}\n"
-                f"Last push: {info['pushed_at']}\n\n"
+                f"Stars: {info['stargazers_count']} | Forks: {info['forks_count']} | Open issues: {info['open_issues_count']}\n"
+                f"Default branch: {info['default_branch']}\nLast push: {info['pushed_at']}\n\n"
                 f"Open PRs ({len(prs)}):\n"
             )
             for pr in prs[:5]:
@@ -44,7 +136,7 @@ class GitHubAgent:
             summary += f"\nRecent Workflow Runs:\n"
             for run in runs:
                 icon = "OK" if run.get("conclusion") == "success" else "FAIL"
-                summary += f"  {icon} {run['name']} -- {run['status']} ({run.get('conclusion', 'pending')})\n"
+                summary += f"  {icon} {run['name']} — {run['status']} ({run.get('conclusion', 'pending')})\n"
             return summary
         except Exception as e:
             return f"GitHub error: {e}"
@@ -58,15 +150,6 @@ class GitHubAgent:
         except Exception as e:
             return f"Branch error: {e}"
 
-    def new_fix_branch(self, fix_name: str) -> str:
-        safe = fix_name.lower().replace(" ", "-")[:40]
-        branch = f"fix/{safe}"
-        try:
-            result = create_branch(self.repo, branch)
-            return f"Fix branch: {branch}"
-        except Exception as e:
-            return f"Branch error: {e}"
-
     def open_issue(self, title: str, body: str, labels: list = None) -> str:
         try:
             result = create_issue(self.repo, title, body, labels or ["enhancement"])
@@ -76,22 +159,10 @@ class GitHubAgent:
 
     def open_bug_issue(self, description: str) -> str:
         ai_body = process_task(
-            f"Write a detailed GitHub bug report for: {description}\n"
-            f"Include: Steps to reproduce, Expected behavior, Actual behavior, Environment.",
+            f"Write a detailed GitHub bug report for: {description}\nInclude: Steps to reproduce, Expected behavior, Actual behavior, Environment.",
             "github"
         )
-        return self.open_issue(
-            title=f"Bug: {description[:60]}",
-            body=ai_body,
-            labels=["bug"]
-        )
-
-    def close_issue_with_note(self, issue_number: int, note: str = "") -> str:
-        try:
-            close_issue(self.repo, issue_number, note)
-            return f"Issue #{issue_number} closed."
-        except Exception as e:
-            return f"Close error: {e}"
+        return self.open_issue(title=f"Bug: {description[:60]}", body=ai_body, labels=["bug"])
 
     def open_pr(self, title: str, body: str, head: str, base: str = "main") -> str:
         try:
@@ -100,68 +171,10 @@ class GitHubAgent:
         except Exception as e:
             return f"PR error: {e}"
 
-    def ai_reviewed_pr(self, head: str, pr_description: str, base: str = "main") -> str:
-        ai_body = process_task(
-            f"Write a professional GitHub PR description for branch {head}: {pr_description}",
-            "github"
-        )
-        try:
-            pr = create_pull_request(
-                self.repo,
-                title=f"[OpenClaw] {pr_description[:60]}",
-                body=ai_body,
-                head=head,
-                base=base
-            )
-            review = ai_review_pr_content(pr_description)
-            add_pr_comment(self.repo, pr["number"], f"REVIEWER Agent Auto-Review:\n\n{review}")
-            return f"PR #{pr['number']} opened + reviewed: {pr['html_url']}"
-        except Exception as e:
-            return f"PR creation error: {e}"
-
-    def add_file_to_repo(self, path: str, content: str, message: str, branch: str = "main") -> str:
-        try:
-            content_b64 = base64.b64encode(content.encode()).decode()
-            result = create_file(self.repo, path, content_b64, message, branch)
-            return f"File {path} pushed to {branch}"
-        except Exception as e:
-            return f"File push error: {e}"
-
-    def generate_and_push_workflow(self, task: str, branch: str = "main") -> str:
-        yaml_content = ai_generate_github_action(task)
-        safe_name = task.lower().replace(" ", "_")[:30]
-        path = f".github/workflows/{safe_name}.yml"
-        return self.add_file_to_repo(path, yaml_content, f"ci: add {safe_name} workflow", branch)
-
-    def trigger_deploy(self, workflow_id: str = "deploy.yml", ref: str = "main") -> str:
-        try:
-            result = trigger_workflow(self.repo, workflow_id, ref)
-            return f"Workflow {workflow_id} triggered on {ref}"
-        except Exception as e:
-            return f"Workflow trigger error: {e}"
-
-    def workflow_status(self) -> str:
-        try:
-            runs = list_workflow_runs(self.repo, 5)
-            lines = []
-            for r in runs:
-                icon = "OK" if r.get("conclusion") == "success" else "FAIL"
-                lines.append(
-                    f"{icon} {r['name']} -- {r['status']} "
-                    f"({r.get('conclusion', 'in progress')}) -- {r['created_at'][:10]}"
-                )
-            return "GitHub Actions Status:\n" + "\n".join(lines) if lines else "No workflow runs found."
-        except Exception as e:
-            return f"Status error: {e}"
-
     def execute(self, command: str) -> str:
         cmd = command.lower()
         if "summary" in cmd or "status" in cmd or "info" in cmd:
             return self.repo_summary()
-        elif "workflow" in cmd and ("run" in cmd or "status" in cmd):
-            return self.workflow_status()
-        elif "deploy" in cmd or "trigger" in cmd:
-            return self.trigger_deploy()
         elif "branch" in cmd and ("feature" in cmd or "new" in cmd):
             name = command.replace("create", "").replace("branch", "").replace("feature", "").strip()
             return self.new_feature_branch(name or "unnamed-feature")
@@ -170,17 +183,6 @@ class GitHubAgent:
         elif "issue" in cmd and ("open" in cmd or "create" in cmd or "new" in cmd):
             return self.open_issue(command[:80], command)
         elif "pr" in cmd or "pull request" in cmd:
-            return self.ai_reviewed_pr("feature/auto", command)
-        elif "workflow" in cmd and ("generate" in cmd or "create" in cmd or "add" in cmd):
-            return self.generate_and_push_workflow(command)
+            return self.open_pr(f"[OpenClaw] {command[:60]}", command, "feature/auto")
         else:
-            return process_task(
-                f"Execute this GitHub operation on repo {self.repo}: {command}\n"
-                f"Return exact gh CLI commands or GitHub API calls.",
-                "github"
-            )
-
-
-if __name__ == "__main__":
-    agent = GitHubAgent()
-    print(agent.repo_summary())
+            return process_task(f"Execute this GitHub operation on repo {self.repo}: {command}\nReturn exact gh CLI commands or GitHub API calls.", "github")

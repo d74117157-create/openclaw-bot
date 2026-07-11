@@ -1,77 +1,95 @@
-#!/usr/bin/env python3
-"""OpenClaw Superswarm — Multi-Agent Bot Swarm v2.0"""
-import os, sys, asyncio, logging
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from core.config import settings
-from core.swarm_orchestrator import SwarmOrchestrator
-from core.health import health_router
-import uvicorn
+"""OpenClaw Superswarm — Async entry point.
+Starts: FastAPI health server, Discord bot, Slack bot, 3× Telegram bots.
+"""
+import asyncio
+import logging
+import signal
+import sys
+import threading
+import os
+from dotenv import load_dotenv
 
-# Create dirs BEFORE logging setup
-for log_dir in ["/app/logs", "./logs", "/tmp/openclaw_logs"]:
-    try:
-        os.makedirs(log_dir, exist_ok=True)
-        os.environ["OPENCLAW_LOG_DIR"] = log_dir
-        break
-    except OSError:
-        continue
-else:
-    os.environ["OPENCLAW_LOG_DIR"] = "/tmp"
+load_dotenv()
 
-log_path = os.path.join(os.environ["OPENCLAW_LOG_DIR"], "openclaw.log")
-os.makedirs("data", exist_ok=True)
-
+# Configure logging early
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
-    handlers=[logging.FileHandler(log_path), logging.StreamHandler(sys.stdout)]
+    level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("openclaw")
+logger = logging.getLogger("openclaw.main")
 
-swarm = None
+from config import Config
+from health import HealthServer, update_state
+from memory import init_db, register_bot
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global swarm
-    logger.info("🚀 OpenClaw Superswarm v2.0 initializing...")
-    swarm = SwarmOrchestrator()
-    await swarm.start()
-    logger.info("✅ Swarm online. All agents reporting for duty.")
-    yield
-    logger.info("🛑 Swarm shutting down...")
-    await swarm.stop()
-    logger.info("✅ Swarm offline.")
+config = Config()
+config.log_status()
 
-app = FastAPI(title="OpenClaw Superswarm", description="Multi-agent bot swarm with Discord, Telegram, Slack, and AI orchestration", version="2.0.0", lifespan=lifespan)
-app.include_router(health_router, prefix="/health", tags=["health"])
+# Initialize database
+init_db()
+register_bot("openclaw-discord", "MAIN BRAIN Discord gateway", "discord", "DISCORD_TOKEN")
+register_bot("openclaw-slack", "Slack coordination gateway", "slack", "SLACK_BOT_TOKEN")
+register_bot("openclaw-telegram-1", "Telegram bot 1", "telegram", "TELEGRAM_BOT1_TOKEN")
+register_bot("openclaw-telegram-2", "Telegram bot 2", "telegram", "TELEGRAM_BOT2_TOKEN")
+register_bot("openclaw-telegram-3", "Telegram Super bot", "telegram", "TELEGRAM_BOT3_TOKEN")
 
-@app.get("/")
-async def root():
-    return {
-        "name": "OpenClaw Superswarm",
-        "version": "2.0.0",
-        "status": "online",
-        "swarm_active": swarm.is_running if swarm else False,
-        "agents": swarm.agent_count if swarm else 0,
-        "platforms": list(swarm._bots.keys()) if swarm else [],
-    }
 
-@app.get("/swarm/status")
-async def swarm_status():
-    if not swarm: return JSONResponse({"error": "Swarm not initialized"}, status_code=503)
-    return await swarm.status()
+async def main():
+    health = HealthServer(port=config.HEALTH_PORT)
+    await health.start()
 
-@app.post("/swarm/reload")
-async def swarm_reload():
-    if not swarm: return JSONResponse({"error": "Swarm not initialized"}, status_code=503)
-    await swarm.reload()
-    return {"message": "Swarm reloaded successfully"}
+    tasks = []
+
+    # Discord
+    if config.DISCORD_TOKEN:
+        from gateway.discord_bot import run_discord
+        t = threading.Thread(target=run_discord, daemon=True)
+        t.start()
+        tasks.append(t)
+        logger.info("Discord thread started")
+    else:
+        update_state("discord", "disabled")
+
+    # Slack
+    if config.SLACK_BOT_TOKEN and config.SLACK_APP_TOKEN:
+        from gateway.slack_bot import run_slack
+        slack_task = asyncio.create_task(run_slack())
+        tasks.append(slack_task)
+        logger.info("Slack task started")
+    else:
+        update_state("slack", "disabled")
+
+    # Telegram
+    if any([config.TELEGRAM_BOT1_TOKEN, config.TELEGRAM_BOT2_TOKEN, config.TELEGRAM_BOT3_TOKEN]):
+        from gateway.telegram_bot import run_telegram
+        telegram_task = asyncio.create_task(run_telegram())
+        tasks.append(telegram_task)
+        logger.info("Telegram task started")
+    else:
+        update_state("telegram", "disabled")
+
+    # Wait for shutdown signal
+    stop_event = asyncio.Event()
+
+    def signal_handler():
+        logger.info("Shutdown signal received")
+        stop_event.set()
+
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, signal_handler)
+        except NotImplementedError:
+            pass  # Windows
+
+    logger.info("OpenClaw Superswarm running. Press Ctrl+C to stop.")
+    await stop_event.wait()
+
+    # Cleanup
+    await health.stop()
+    logger.info("Shutdown complete")
+
 
 if __name__ == "__main__":
-    # Render sets PORT env var (default 10000)
-    port = int(os.environ.get("PORT", settings.APP_PORT))
-    host = "0.0.0.0"
-    logger.info(f"Starting server on {host}:{port}")
-    uvicorn.run("main:app", host=host, port=port, reload=False)
+    asyncio.run(main())

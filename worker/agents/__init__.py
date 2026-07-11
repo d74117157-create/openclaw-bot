@@ -1,18 +1,17 @@
-# OpenClaw — agents package
-from worker.agents.coder import run as coder
-from worker.agents.reviewer import run as reviewer
-from worker.agents.qa import run as qa
-from worker.agents.ops import run as ops
-from worker.agents.research import run as research
-from worker.agents.growth import run as growth
-from worker.agents.memory_agent import run as memory
+"""OpenClaw agent dispatch."""
+from worker.ai_worker import process_task, AGENT_PERSONAS
 
 AGENT_DISPATCH = {
-    "coder":    coder,
-    "reviewer": reviewer,
-    "qa":       qa,
-    "ops":      ops,
-    "research": research,
-    "growth":   growth,
-    "memory":   memory,
+    "coder": lambda t: process_task(t, "coder"),
+    "reviewer": lambda t: process_task(t, "reviewer"),
+    "qa": lambda t: process_task(t, "qa"),
+    "ops": lambda t: process_task(t, "ops"),
+    "research": lambda t: process_task(t, "research"),
+    "growth": lambda t: process_task(t, "growth"),
+    "memory": lambda t: process_task(t, "memory"),
+    "github": lambda t: process_task(t, "github"),
+    "browser": lambda t: process_task(t, "browser"),
+    "orchestrator": lambda t: process_task(t, "orchestrator"),
 }
+
+__all__ = ["AGENT_DISPATCH", "AGENT_PERSONAS"]
