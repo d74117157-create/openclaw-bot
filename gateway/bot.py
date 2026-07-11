@@ -157,6 +157,83 @@ async def cmd_status(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
+
+
+# -- Trading Agent Commands ---------------------------------------------------
+
+from worker.agents.trader import get_trader
+from worker.agents.risk_manager import RiskManager
+
+risk_mgr = RiskManager()
+
+@tree.command(name="trade", description="Execute a trade via swarm")
+@app_commands.describe(
+    exchange="binance (more coming)",
+    symbol="e.g. BTC/USDT",
+    side="buy or sell",
+    qty="Amount to trade"
+)
+async def cmd_trade(interaction: discord.Interaction, exchange: str, symbol: str, side: str, qty: float):
+    await interaction.response.defer()
+    try:
+        trader = get_trader(exchange)
+        price = trader.get_price(symbol)
+        risk = risk_mgr.check_trade(trader, symbol, side, qty, price)
+        if not risk["approved"]:
+            await interaction.followup.send(f"🚫 **RISK BLOCKED:** {risk['reason']}")
+            return
+        result = trader.place_order(symbol, side, qty)
+        embed = discord.Embed(title=f"📈 Trade Executed", color=0x00ff00 if side == "buy" else 0xff0000)
+        embed.add_field(name="Exchange", value=exchange.upper(), inline=True)
+        embed.add_field(name="Symbol", value=symbol.upper(), inline=True)
+        embed.add_field(name="Side", value=side.upper(), inline=True)
+        embed.add_field(name="Qty", value=str(qty), inline=True)
+        embed.add_field(name="Price", value=f"${price:,.2f}", inline=True)
+        embed.add_field(name="Notional", value=f"${qty * price:,.2f}", inline=True)
+        embed.add_field(name="Mode", value="PAPER" if trader.paper else "LIVE", inline=True)
+        embed.add_field(name="Status", value=result.get("status", "unknown"), inline=False)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Trade failed: {str(e)}")
+
+@tree.command(name="balance", description="Check trading balance")
+@app_commands.describe(exchange="binance")
+async def cmd_balance(interaction: discord.Interaction, exchange: str):
+    await interaction.response.defer()
+    try:
+        trader = get_trader(exchange)
+        bal = trader.get_balance()
+        embed = discord.Embed(title=f"💰 {exchange.upper()} Balance", color=0x3498db)
+        embed.add_field(name="Asset", value=bal.get("asset", "USDT"), inline=True)
+        embed.add_field(name="Total", value=f"${bal.get('total', 0):,.2f}", inline=True)
+        embed.add_field(name="Free", value=f"${bal.get('free', 0):,.2f}", inline=True)
+        embed.add_field(name="Mode", value="PAPER" if trader.paper else "LIVE", inline=True)
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {str(e)}")
+
+@tree.command(name="positions", description="View active positions")
+@app_commands.describe(exchange="binance")
+async def cmd_positions(interaction: discord.Interaction, exchange: str):
+    await interaction.response.defer()
+    try:
+        trader = get_trader(exchange)
+        pos = trader.get_positions()
+        if not pos:
+            await interaction.followup.send("📭 No active positions.")
+            return
+        embed = discord.Embed(title=f"📊 {exchange.upper()} Positions", color=0x9b59b6)
+        for i, p in enumerate(pos[-5:], 1):
+            embed.add_field(
+                name=f"#{i} {p['symbol']}",
+                value=f"{p['side'].upper()} {p['qty']} @ ${p['price']:,.2f} | Notional: ${p['notional']:,.2f}",
+                inline=False
+            )
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {str(e)}")
+
+
 # -- Run ----------------------------------------------------------------------
 
 if __name__ == "__main__":
