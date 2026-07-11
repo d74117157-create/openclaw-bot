@@ -1,0 +1,64 @@
+name: Run OpenClaw Bot on GitHub Actions
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Keep alive - restart every 6 hours (GitHub Actions jobs max runtime is ~6 hours)
+    - cron: '0 */6 * * *'
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Create .env file
+        run: |
+          cat > .env <<EOF
+          DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+          TELEGRAM_BOT1_TOKEN=${{ secrets.TELEGRAM_BOT1_TOKEN }}
+          TELEGRAM_BOT2_TOKEN=${{ secrets.TELEGRAM_BOT2_TOKEN }}
+          TELEGRAM_BOT3_TOKEN=${{ secrets.TELEGRAM_BOT3_TOKEN }}
+          SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_APP_TOKEN=${{ secrets.SLACK_APP_TOKEN }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          APP_HOST=0.0.0.0
+          APP_PORT=8000
+          ENVIRONMENT=production
+          SWARM_MODE=auto-reconnect
+          EOF
+
+      - name: Run OpenClaw Bot
+        run: |
+          mkdir -p logs data
+          # Run for 5 hours 55 minutes (GitHub Actions limit is 6 hours)
+          timeout 21300 python main.py &
+          BOT_PID=$!
+
+          # Health check loop
+          for i in {1..355}; do
+            sleep 60
+            if ! kill -0 $BOT_PID 2>/dev/null; then
+              echo "Bot crashed, restarting..."
+              timeout 21300 python main.py &
+              BOT_PID=$!
+            fi
+            echo "Bot alive - check $i/355"
+          done
+
+          echo "6 hours elapsed - job will be restarted by schedule"
