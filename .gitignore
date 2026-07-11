@@ -1,49 +1,11 @@
-# Environment
-.env
-*.env
-.env.*
-!.env.example
-
-# Python
 __pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-openclaw_memory.db
-
-# Logs
-logs/
+*.pyc
+.env
+.venv/
+venv/
 *.log
-
-# Generated bots
-bots/generated_*
-
-# Bot registry (regenerated on start)
-bot_registry.json
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+/tmp/
+agents/generated/
 .DS_Store
-Thumbs.db
+.idea/
+.vscode/

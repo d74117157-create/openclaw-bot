@@ -1,0 +1,32 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trigger Render Deploy
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+  deploy-oci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to OCI VM
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USER: ubuntu
+        run: |
+          echo "${{ secrets.OCI_SSH_KEY }}" > oci_key.pem
+          chmod 600 oci_key.pem
+          ssh -i oci_key.pem -o StrictHostKeyChecking=no $OCI_USER@$OCI_HOST "
+            cd /opt/openclaw &&
+            git pull origin main &&
+            pip install -r requirements.txt &&
+            sudo systemctl restart openclaw
+          "

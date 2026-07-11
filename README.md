@@ -1,65 +1,86 @@
-# OpenClaw Superswarm v5.0
+# 🦅 OpenClaw Empire
 
-Multi-platform AI agent swarm: **Discord + Slack + 3× Telegram** bots, Groq LLM orchestration, GitHub automation, Render deployment.
+Multi-platform bot swarm + AI builder + multi-cloud deployment.
 
 ## Architecture
 
-- **gateway/discord_bot.py** — Discord MAIN BRAIN (slash commands, brain channel)
-- **gateway/slack_bot.py** — Slack Socket Mode gateway
-- **gateway/telegram_bot.py** — 3 Telegram bots via python-telegram-bot
-- **worker/ai_worker.py** — Groq LLM engine (9 agent personas)
-- **worker/task_router.py** — Smart task routing (AI + keyword fallback)
-- **worker/executor.py** — Parallel execution, Slack/GitHub posting
-- **worker/github_agent.py** — GitHub API automation (branches, PRs, issues, Actions)
-- **worker/slack_reporter.py** — Real-time Slack updates
-- **worker/self_test.py** — QA validation harness
-- **worker/browser_worker.py** — Playwright browser automation
-- **memory/db.py** — SQLite persistent memory
-- **health.py** — FastAPI health/metrics server for Render
-- **main.py** — Single async entry point
+```
+GitHub → Render (Primary) + Oracle Cloud (Worker)
+              ↓
+    Discord + 3×Telegram + Slack bots
+              ↓
+        Empire Builder (Claude API)
+```
 
-## Discord Commands
+## Quick Start
 
-- `/create-task <agent> <task>` — Run single agent
-- `/swarm <task>` — Auto-plan + full swarm execution
-- `/deploy <target>` — Ops deployment plan
-- `/github <action>` — GitHub automation
-- `/agents` — List swarm agents
-- `/status` — Task stats
-- `/route <task>` — Show AI routing plan
+### 1. Local Development (Codespaces)
+Open this repo in GitHub Codespaces — Claude Code + all deps are pre-installed.
 
-## Telegram Commands
+### 2. Deploy to Render
+```bash
+# Already connected to srv-d978fh6puehc73fkq60g
+# Push to main → auto-deploys
+```
 
-- `/start` — Welcome
-- `/swarm <task>` — Run orchestrator
-- `/agents` — List agents
-- `/status` — Task stats
-- Any text — Direct AI processing
+### 3. Deploy to Oracle Cloud
+```bash
+# On your OCI VM:
+curl -fsSL https://raw.githubusercontent.com/d74117157-create/openclaw-bot/main/scripts/oci-setup.sh | bash
+```
 
-## Setup
-
-1. `cp .env.example .env` and fill tokens
-2. `pip install -r requirements.txt`
-3. `python main.py`
-
-## Render Deploy
-
-1. Connect GitHub repo to Render
-2. Set `RENDER_DEPLOY_HOOK` in GitHub Secrets → auto-deploy on push
-3. Health check: `GET /health` and `GET /ready`
+Then add these GitHub Secrets:
+- `OCI_HOST` — your VM public IP
+- `OCI_SSH_KEY` — your private SSH key
+- `RENDER_DEPLOY_HOOK` — your Render deploy hook URL
 
 ## Environment Variables
 
-| Variable | Platform | Required |
-|----------|----------|----------|
-| `DISCORD_TOKEN` | Discord | Optional |
-| `TELEGRAM_BOT1_TOKEN` | Telegram | Optional |
-| `TELEGRAM_BOT2_TOKEN` | Telegram | Optional |
-| `TELEGRAM_BOT3_TOKEN` | Telegram | Optional |
-| `SLACK_BOT_TOKEN` | Slack | Optional |
-| `SLACK_APP_TOKEN` | Slack | Optional |
-| `GROQ_API_KEY` | AI | **Yes** |
-| `GITHUB_TOKEN` | GitHub | Optional |
-| `RENDER_DEPLOY_HOOK` | CI/CD | Optional |
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Claude API access |
+| `DISCORD_TOKEN` | Discord bot token |
+| `TELEGRAM_BOT1_TOKEN` | Telegram Bot 1 |
+| `TELEGRAM_BOT2_TOKEN` | Telegram Bot 2 |
+| `TELEGRAM_BOT3_TOKEN` | Telegram Bot 3 (Super) |
+| `SLACK_BOT_TOKEN` | Slack Bot Token |
+| `SLACK_APP_TOKEN` | Slack App Token |
 
-At least one platform token is required.
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Status |
+| `/health` | GET | Health check |
+| `/empire/status` | GET | Full mesh status |
+| `/empire/build` | POST | Clone repo + build with Claude |
+
+## Bot Commands
+
+**Discord:**
+- `!empire` — Status
+- `!build <repo_url> <prompt>` — Clone and generate code
+
+**Telegram:**
+- `/empire` — Status
+
+**Slack:**
+- Mention "empire" — Status
+
+## Empire Builder
+
+The builder agent clones any GitHub repo, feeds key files to Claude, and generates new Python modules:
+
+```python
+from agents.builder import EmpireBuilder
+
+builder = EmpireBuilder()
+output = builder.clone_and_analyze(
+    "https://github.com/some/repo",
+    "Build me a webhook handler like this repo's architecture"
+)
+builder.save_build(output)
+```
+
+## License
+MIT

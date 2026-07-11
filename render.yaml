@@ -1,17 +1,16 @@
 services:
   - type: web
-    name: openclaw-bot
+    name: openclaw-empire
     runtime: python
-    plan: starter
-    buildCommand: pip install -r requirements.txt && playwright install chromium --with-deps || true
+    plan: standard
+    buildCommand: pip install -r requirements.txt
     startCommand: python main.py
-    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: DISCORD_TOKEN
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: DISCORD_GUILD_ID
+      - key: DISCORD_TOKEN
         sync: false
       - key: TELEGRAM_BOT1_TOKEN
         sync: false
@@ -19,31 +18,7 @@ services:
         sync: false
       - key: TELEGRAM_BOT3_TOKEN
         sync: false
-      - key: TELEGRAM_WEBHOOK_URL
-        sync: false
       - key: SLACK_BOT_TOKEN
         sync: false
       - key: SLACK_APP_TOKEN
         sync: false
-      - key: SLACK_CHANNEL
-        value: ops
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: llama3-70b-8192
-      - key: GITHUB_TOKEN
-        sync: false
-      - key: GITHUB_REPO
-        sync: false
-      - key: RENDER_DEPLOY_HOOK
-        sync: false
-      - key: MEMORY_DB
-        value: openclaw_memory.db
-      - key: BROWSER_HEADLESS
-        value: true
-      - key: SCREENSHOT_DIR
-        value: /tmp/openclaw_screenshots
-      - key: HEALTH_PORT
-        value: 8080
-      - key: LOG_LEVEL
-        value: INFO
