@@ -8,7 +8,6 @@ import uvicorn
 
 logger = logging.getLogger("openclaw.health")
 
-# Global state injected at startup
 _swarm_state: Dict[str, Any] = {
     "discord": "initializing",
     "slack": "initializing",
@@ -16,6 +15,9 @@ _swarm_state: Dict[str, Any] = {
     "tasks_total": 0,
     "tasks_done": 0,
     "tasks_failed": 0,
+    "agents_active": [],
+    "last_task": "",
+    "uptime_start": None,
 }
 
 
@@ -38,7 +40,7 @@ def create_app() -> FastAPI:
     @app.get("/ready")
     async def ready() -> JSONResponse:
         all_ready = all(
-            _swarm_state.get(k) in ("connected", "online", "polling")
+            _swarm_state.get(k) in ("connected", "online", "polling", "disabled")
             for k in ("discord", "slack", "telegram")
         )
         return JSONResponse(
@@ -50,9 +52,27 @@ def create_app() -> FastAPI:
     async def metrics() -> Dict[str, Any]:
         return {"swarm": _swarm_state}
 
+    @app.get("/swarm/status")
+    async def swarm_status() -> Dict[str, Any]:
+        from memory import get_stats, get_active_bots
+        stats = get_stats()
+        bots = get_active_bots()
+        return {
+            "service": "openclaw",
+            "version": "5.0.0",
+            "platforms": {
+                "discord": _swarm_state.get("discord", "unknown"),
+                "slack": _swarm_state.get("slack", "unknown"),
+                "telegram": _swarm_state.get("telegram", "unknown"),
+            },
+            "tasks": stats,
+            "active_bots": bots,
+            "agents": _swarm_state.get("agents_active", []),
+            "last_task": _swarm_state.get("last_task", ""),
+        }
+
     @app.post("/telegram/webhook/{bot_id}")
     async def telegram_webhook(bot_id: int, payload: Dict[str, Any]) -> Dict[str, str]:
-        # Webhook receiver for Telegram bots if using webhook mode
         return {"status": "ok", "bot_id": str(bot_id)}
 
     return app
@@ -63,8 +83,8 @@ class HealthServer:
         self.host = host
         self.port = port
         self.app = create_app()
-        self._server: uvicorn.Server | None = None
-        self._task: asyncio.Task | None = None
+        self._server = None
+        self._task = None
 
     async def start(self) -> None:
         config = uvicorn.Config(

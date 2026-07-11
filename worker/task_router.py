@@ -25,18 +25,20 @@ AGENT_TRIGGERS = {
     "memory": ["remember", "log", "track", "history", "past", "previous", "decisions", "what did", "record"],
 }
 
-ROUTER_SYSTEM = """You are a task router for an AI swarm. Given a task, output JSON:
-{
-  "needs_browser": true,
-  "agents": ["agent1"],
-  "priority": "high",
-  "browser_task": "sub-task",
-  "github_issue": true,
-  "slack_alert": true,
-  "estimated_steps": 3
-}
-Agents: orchestrator, coder, reviewer, qa, ops, research, growth, memory, github, browser.
-Return ONLY valid JSON."""
+ROUTER_SYSTEM = (
+    "You are a task router for an AI swarm. Given a task, output JSON:\n"
+    "{\n"
+    '  "needs_browser": true,\n'
+    '  "agents": ["agent1"],\n'
+    '  "priority": "high",\n'
+    '  "browser_task": "sub-task",\n'
+    '  "github_issue": true,\n'
+    '  "slack_alert": true,\n'
+    '  "estimated_steps": 3\n'
+    "}\n"
+    "Agents: orchestrator, coder, reviewer, qa, ops, research, growth, memory, github, browser.\n"
+    "Return ONLY valid JSON."
+)
 
 
 class TaskRouter:
@@ -94,5 +96,4 @@ class TaskRouter:
             parts.append("**GitHub issue:** Will be created")
         if route.get("slack_alert"):
             parts.append("**Slack:** Full log posted")
-        return "
-".join(parts)
+        return "\n".join(parts)
