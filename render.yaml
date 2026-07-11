@@ -22,3 +22,24 @@ services:
         sync: false
       - key: SLACK_APP_TOKEN
         sync: false
+      # Trading
+      - key: TRADING_MODE
+        value: paper
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_API_SECRET
+        sync: false
+      - key: ALPACA_API_KEY
+        sync: false
+      - key: ALPACA_API_SECRET
+        sync: false
+      - key: FREQTRADE_URL
+        sync: false
+      - key: MAX_DAILY_LOSS_PCT
+        value: "5.0"
+      - key: MAX_POSITION_PCT
+        value: "20.0"
+      - key: STOP_LOSS_PCT
+        value: "3.0"
+      - key: TAKE_PROFIT_PCT
+        value: "6.0"
