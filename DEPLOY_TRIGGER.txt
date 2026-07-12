@@ -1,0 +1,4 @@
+# DEPLOY TRIGGER - 2026-07-12
+# Google OAuth credentials configured
+# Websockets dependency fixed
+# Ready for execution
