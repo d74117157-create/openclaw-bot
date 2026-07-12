@@ -1,0 +1,267 @@
+.app {
+  min-height: 100vh;
+  background: #0a0a0f;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  background: #111118;
+  border-bottom: 1px solid #222;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #00ff88;
+}
+
+.logo-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.search-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: #1a1a24;
+  border-radius: 12px;
+  padding: 10px 16px;
+  gap: 10px;
+}
+
+.search-bar input {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+}
+
+.search-icon {
+  width: 18px;
+  height: 18px;
+  color: #888;
+}
+
+.cart-btn {
+  position: relative;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.cart-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #ff3333;
+  color: #fff;
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero {
+  background: linear-gradient(135deg, #0a0a0f 0%, #1a1a3e 50%, #0a0a0f 100%);
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: 48px;
+  font-weight: 900;
+  background: linear-gradient(90deg, #00ff88, #00aaff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 16px;
+}
+
+.hero p {
+  font-size: 18px;
+  color: #888;
+  max-width: 500px;
+  margin: 0 auto 24px;
+}
+
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-top: 32px;
+}
+
+.hero-stats div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00ff88;
+  font-size: 14px;
+}
+
+.categories {
+  display: flex;
+  gap: 10px;
+  padding: 20px 24px;
+  overflow-x: auto;
+}
+
+.categories button {
+  padding: 8px 20px;
+  border-radius: 20px;
+  border: 1px solid #333;
+  background: #111118;
+  color: #888;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.categories button.active,
+.categories button:hover {
+  background: #00ff88;
+  color: #000;
+  border-color: #00ff88;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 0 24px 40px;
+}
+
+.product-card {
+  background: #111118;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #222;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+  border-color: #00ff88;
+}
+
+.product-image {
+  height: 200px;
+  position: relative;
+}
+
+.category-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0,0,0,0.7);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #00ff88;
+}
+
+.product-info {
+  padding: 16px;
+}
+
+.product-info h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.product-info p {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.product-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.price {
+  font-size: 22px;
+  font-weight: 700;
+  color: #00ff88;
+}
+
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffaa00;
+  font-size: 13px;
+}
+
+.star {
+  width: 16px;
+  height: 16px;
+  fill: #ffaa00;
+}
+
+.buy-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(90deg, #00ff88, #00cc6a);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+
+.buy-btn:hover {
+  opacity: 0.9;
+}
+
+.loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px;
+  color: #888;
+  font-size: 16px;
+}
+
+.footer {
+  text-align: center;
+  padding: 40px 24px;
+  border-top: 1px solid #222;
+  color: #888;
+  font-size: 13px;
+}
+
+.footer p:first-child {
+  color: #00ff88;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+  .hero h1 { font-size: 32px; }
+  .hero-stats { flex-direction: column; gap: 12px; }
+  .products-grid { grid-template-columns: 1fr; }
+}
