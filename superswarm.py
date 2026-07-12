@@ -62,3 +62,13 @@ class SuperswarmCore:
                 if time.time() - task_time > 3600:  # 1 hour stuck
                     agent["status"] = "idle"
                     agent["healed_at"] = datetime.utcnow().isoformat()
+
+# ─── Singleton getter ───────────────────────────────────────────
+_superswarm_instance = None
+
+def get_superswarm():
+    global _superswarm_instance
+    if _superswarm_instance is None:
+        _superswarm_instance = SuperswarmCore()
+        _superswarm_instance.boot()
+    return _superswarm_instance
