@@ -13,7 +13,7 @@ from datetime import datetime
 
 # ─── ENVIRONMENT ─────────────────────────────────────────────────
 PORT = int(os.getenv("PORT", 10000))
-EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/data/empire-state.json")
+EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/tmp/empire-state.json")
 
 # ─── IMPORT EMPIRE MODULES ──────────────────────────────────────
 from assets.fastapi_superswarm_api import app, empire, uvicorn
