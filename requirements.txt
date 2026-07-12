@@ -21,3 +21,7 @@ python-binance>=1.0.19
 # alpaca-py>=0.20.0  # Removed, using custom trader
 yfinance>=0.2.28
 # freqtrade>=2024.1  # Removed due to dependency conflicts
+
+schedule
+gspread
+oauth2client
