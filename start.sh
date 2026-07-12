@@ -1,43 +1,15 @@
 #!/bin/bash
-# OpenClaw Superswarm — Render startup
-# set -e  # REMOVED: prevents boot failure on pipeline errors
+# KingLulu Empire Boot Script
+# Boots the entire money machine
 
-echo "[EMPIRE] ╔═══════════════════════════════════════╗"
-echo "[EMPIRE] ║  OpenClaw Superswarm v3.0-Trading    ║"
-echo "[EMPIRE] ╚═══════════════════════════════════════╝"
+echo "🦅 KINGLULU EMPIRE BOOTING..."
 
-# Verify critical env vars
-MISSING=0
-for var in DISCORD_TOKEN TELEGRAM_BOT1_TOKEN TELEGRAM_BOT2_TOKEN TELEGRAM_BOT3_TOKEN SLACK_BOT_TOKEN SLACK_APP_TOKEN; do
-    if [ -z "${!var}" ]; then
-        echo "[EMPIRE] ⚠️  $var not set"
-        MISSING=$((MISSING+1))
-    else
-        echo "[EMPIRE] ✅ $var set"
-    fi
-done
+# Set Python path
+export PYTHONPATH="${PYTHONPATH}:."
 
-echo "[EMPIRE] $MISSING env vars missing (non-critical if not using that platform)"
+# Run the empire
+python3 master_orchestrator.py &
 
-# ═══════════════════════════════════════════════════
-# AUTO-EXECUTE PIPELINES ON STARTUP
-# ═══════════════════════════════════════════════════
-echo ""
-echo "[EXECUTE] 🚀 AUTO-EXECUTING SWARM PIPELINES..."
-echo "[EXECUTE] Running YouTube content pipeline..."
-python3 automation/youtube_pipeline.py crypto US 2>/dev/null || echo "[EXECUTE] YouTube pipeline skipped (non-critical)"
-
-echo ""
-echo "[EXECUTE] Running trading signals..."
-python3 automation/trading_signals.py --top 2>/dev/null || echo "[EXECUTE] Trading signals skipped (non-critical)"
-
-echo ""
-echo "[EXECUTE] Broadcasting status..."
-python3 -c "from victor import broadcast; broadcast('🐾 OpenClaw Swarm booted')" 2>/dev/null || echo "[EXECUTE] Broadcast skipped"
-
-echo ""
-echo "[EXECUTE] ✅ Auto-execution complete. Starting main service..."
-echo ""
-
-# Start the empire
-exec python main.py
+# Keep alive
+echo "✅ EMPIRE RUNNING"
+tail -f /dev/null
