@@ -93,6 +93,20 @@ class MasterOrchestrator:
             self.marketing.process_content_queue()
             empire.save()
 
+
+    def init_empire(self):
+        """Alias for boot(). Called by main.py."""
+        self.boot()
+
+    def run_daily_cycle(self):
+        """Run one daily empire cycle."""
+        print("[CYCLE] Running daily cycle...")
+        self.marketing.process_content_queue()
+        revenue = self.marketing.aggregate_revenue()
+        print(f"[CYCLE] Revenue status: {revenue}")
+        self.swarm.auto_heal()
+        print("[CYCLE] Daily cycle complete.")
+
     def shutdown(self):
         self.running = False
         empire.log("shutdown", {"timestamp": datetime.utcnow().isoformat()})
@@ -100,6 +114,16 @@ class MasterOrchestrator:
         print("[SHUTDOWN] Empire state saved. Goodbye, Colonel.")
 
 # ─── MAIN ───────────────────────────────────────────────────────
+
+# ─── Singleton getter ───────────────────────────────────────────
+_master_orchestrator_instance = None
+
+def get_master_orchestrator():
+    global _master_orchestrator_instance
+    if _master_orchestrator_instance is None:
+        _master_orchestrator_instance = MasterOrchestrator()
+    return _master_orchestrator_instance
+
 if __name__ == "__main__":
     orchestrator = MasterOrchestrator()
 
