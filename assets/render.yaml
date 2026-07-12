@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: openclaw-superswarm
+    runtime: python
+    plan: standard
+    region: oregon
+    buildCommand: pip install -r assets/requirements.txt
+    startCommand: python master_orchestrator.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: EMPIRE_PASSWORD
+        sync: false
+      - key: EMPIRE_STATE_PATH
+        value: /data/empire-state.json
+      - key: XAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT1_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT2_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT3_TOKEN
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: BINANCE_API_KEY
+        sync: false
+      - key: BINANCE_SECRET_KEY
+        sync: false
+    disk:
+      name: empire-data
+      mountPath: /data
+      sizeGB: 1
