@@ -71,3 +71,12 @@ class MarketingEngine:
         }
         self.campaigns.append(campaign)
         return campaign
+
+# ─── Singleton getter ───────────────────────────────────────────
+_marketing_engine_instance = None
+
+def get_marketing_engine():
+    global _marketing_engine_instance
+    if _marketing_engine_instance is None:
+        _marketing_engine_instance = MarketingEngine()
+    return _marketing_engine_instance
