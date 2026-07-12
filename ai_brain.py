@@ -19,7 +19,7 @@ class AIBrain:
     """
     Unified AI brain with cascading fallback:
     1. Groq (fastest, cheapest) → llama-3.3-70b-versatile
-    2. xAI Grok → grok-2-latest
+    2. xAI Grok → grok-2-latest  
     3. OpenAI → gpt-4o-mini
     4. Anthropic Claude → claude-3-haiku
     """
@@ -50,10 +50,10 @@ Current date: {date}. Empire target: $20,000/month passive income."""
 
     def _check_providers(self) -> Dict[str, bool]:
         return {
-            "groq": bool(GROQ_API_KEY),
+            "groq": bool(GROQ_API_KEY and GROQ_API_KEY.startswith("gsk_")),
             "grok": bool(GROK_API_KEY),
-            "openai": bool(OPENAI_API_KEY),
-            "anthropic": bool(ANTHROPIC_API_KEY),
+            "openai": bool(OPENAI_API_KEY and (OPENAI_API_KEY.startswith("sk-") or OPENAI_API_KEY.startswith("sk-proj-"))),
+            "anthropic": bool(ANTHROPIC_API_KEY and ANTHROPIC_API_KEY.startswith("sk-ant-")),
         }
 
     def _pick_primary(self) -> str:
@@ -193,7 +193,7 @@ Current date: {date}. Empire target: $20,000/month passive income."""
 
     def _fallback_response(self, message: str, agent_type: str, context: Dict) -> str:
         platform = context.get("platform", "unknown")
-        return f"🧠 **Viktor A.I** (offline mode)\n\nI received your message on {platform}, but no AI provider is configured.\n\nSet one of these in Render env vars:\n• `GROQ_API_KEY` (recommended)\n• `GROK_API_KEY` (xAI)\n• `OPENAI_API_KEY`\n• `ANTHROPIC_API_KEY`\n\nYour message: *{message[:200]}...*"
+        return f"🧠 **Viktor A.I** (offline mode)\n\nI received your message on {platform}, but no AI provider is configured.\n\nSet one of these in Render env vars:\n• `GROQ_API_KEY` (gsk_...) — fastest, free tier\n• `GROK_API_KEY` — xAI Grok\n• `OPENAI_API_KEY` (sk-... or sk-proj-...) — OpenAI\n• `ANTHROPIC_API_KEY` (sk-ant-...) — Claude\n\nYour message: *{message[:200]}...*"
 
     def get_status(self) -> Dict:
         return {
