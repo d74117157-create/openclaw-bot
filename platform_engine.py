@@ -42,9 +42,27 @@ class PlatformEngine:
     def get_status(self) -> Dict:
         return {name: {"status": cfg["status"]} for name, cfg in self.platforms.items()}
 
+
+    def setup_platform(self, name: str):
+        """Activate a platform by name."""
+        if name not in self.platforms:
+            self.platforms[name] = {"status": "online"}
+        else:
+            self.platforms[name]["status"] = "online"
+        print(f"[PLATFORM] {name}: online")
+
     def broadcast(self, message: str) -> List[Dict]:
         results = []
         for platform in self.platforms:
             if self.platforms[platform]["status"].startswith("online"):
                 results.append(self.send_message(platform, message))
         return results
+
+# ─── Singleton getter ───────────────────────────────────────────
+_platform_engine_instance = None
+
+def get_platform_engine():
+    global _platform_engine_instance
+    if _platform_engine_instance is None:
+        _platform_engine_instance = PlatformEngine()
+    return _platform_engine_instance
