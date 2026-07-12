@@ -1,6 +1,6 @@
 """
 Empire Task Engine — Autonomous Task Assignment & Execution
-Viktor A.I assigns tasks to agents, tracks progress, escalates blockers.
+Each agent gets SPECIFIC tasks. No overlap. No confusion. Pure execution.
 """
 import os
 import json
@@ -14,20 +14,11 @@ TASK_DB_PATH = os.getenv("EMPIRE_TASK_DB", "/tmp/empire-tasks.json")
 
 class EmpireTaskEngine:
     """
-    The central nervous system of the empire.
-    Creates tasks, assigns to agents, tracks completion, escalates failures.
+    The central nervous system. Creates tasks, assigns to SPECIFIC agents,
+    tracks completion, escalates blockers.
     """
 
     PRIORITY_LEVELS = {"critical": 1, "high": 2, "medium": 3, "low": 4}
-
-    AGENT_CAPABILITIES = {
-        "coder": ["code", "deploy", "fix", "build", "script", "api", "bot"],
-        "researcher": ["research", "analyze", "find", "data", "trend", "market"],
-        "growth": ["market", "promote", "seo", "social", "content", "advertise", "scale"],
-        "ops": ["monitor", "deploy", "fix", "health", "server", "infrastructure"],
-        "qa": ["test", "verify", "check", "audit", "review"],
-        "orchestrator": ["coordinate", "plan", "strategy", "decide", "route"],
-    }
 
     def __init__(self):
         self.tasks: List[Dict] = []
@@ -52,7 +43,6 @@ class EmpireTaskEngine:
     def create_task(self, title: str, description: str, agent_type: str = "auto",
                    priority: str = "medium", platform: str = "empire",
                    deadline_hours: int = 24, metadata: Dict = None) -> str:
-        """Create a new empire task."""
         task_id = f"task_{int(time.time())}_{random.randint(1000,9999)}"
 
         if agent_type == "auto":
@@ -82,29 +72,30 @@ class EmpireTaskEngine:
         return task_id
 
     def _pick_agent_for_task(self, text: str) -> str:
-        """Auto-assign agent based on task keywords."""
         text_lower = text.lower()
-        scores = {}
-        for agent, capabilities in self.AGENT_CAPABILITIES.items():
-            score = sum(1 for cap in capabilities if cap in text_lower)
-            scores[agent] = score
+        keywords = {
+            "coder": ["code", "deploy", "fix", "build", "script", "api", "bot", "app", "develop", "program", "write python", "create"],
+            "researcher": ["research", "analyze", "find", "data", "trend", "market", "study", "investigate", "report"],
+            "growth": ["market", "promote", "seo", "social", "content", "advertise", "scale", "grow", "viral", "post"],
+            "ops": ["monitor", "deploy", "fix", "health", "server", "infrastructure", "maintain", "check"],
+            "qa": ["test", "verify", "check", "audit", "review", "validate", "debug"],
+            "orchestrator": ["coordinate", "plan", "strategy", "decide", "route", "manage"],
+        }
+
+        scores = {agent: sum(1 for kw in kws if kw in text_lower) for agent, kws in keywords.items()}
         best = max(scores, key=scores.get)
         return best if scores[best] > 0 else "orchestrator"
 
     def get_next_task(self, agent_type: str) -> Optional[Dict]:
-        """Get highest priority pending task for an agent type."""
         pending = [t for t in self.tasks 
                    if t["status"] in ["queued", "blocked"] 
                    and t["agent_type"] == agent_type]
         if not pending:
             return None
-
-        # Sort by priority then deadline
         pending.sort(key=lambda t: (self.PRIORITY_LEVELS.get(t["priority"], 3), t["deadline"]))
         return pending[0]
 
     def start_task(self, task_id: str):
-        """Mark task as in-progress."""
         for t in self.tasks:
             if t["id"] == task_id:
                 t["status"] = "in_progress"
@@ -116,7 +107,6 @@ class EmpireTaskEngine:
         return False
 
     def complete_task(self, task_id: str, result: str):
-        """Mark task complete with result."""
         for t in self.tasks:
             if t["id"] == task_id:
                 t["status"] = "completed"
@@ -130,7 +120,6 @@ class EmpireTaskEngine:
         return False
 
     def block_task(self, task_id: str, reason: str):
-        """Block task with reason."""
         for t in self.tasks:
             if t["id"] == task_id:
                 t["status"] = "blocked"
@@ -141,7 +130,6 @@ class EmpireTaskEngine:
         return False
 
     def get_dashboard(self) -> Dict:
-        """Get full empire task dashboard."""
         by_status = {}
         by_agent = {}
         for t in self.tasks:
@@ -150,7 +138,7 @@ class EmpireTaskEngine:
 
         overdue = [t for t in self.tasks 
                    if t["status"] in ["queued", "in_progress", "blocked"]
-                   and datetime.fromisoformat(t["deadline"]) < datetime.utcnow()]
+                   and datetime.fromisoformat(t["deadline"].replace('Z', '+00:00').replace('+00:00', '')) < datetime.utcnow()]
 
         return {
             "total_active": len(self.tasks),
@@ -166,19 +154,19 @@ class EmpireTaskEngine:
         """Run one cycle of autonomous task execution."""
         print("[TASK_ENGINE] Running auto-execution cycle...")
 
-        for agent_type in self.AGENT_CAPABILITIES.keys():
+        for agent_type in ["coder", "growth", "researcher", "ops", "qa", "orchestrator"]:
             task = self.get_next_task(agent_type)
             if task and task["status"] == "queued":
                 self.start_task(task["id"])
 
-                # Use AI brain to execute the task
                 if self.brain.is_configured():
-                    prompt = f"Execute this empire task:\n\nTitle: {task['title']}\nDescription: {task['description']}\nPlatform: {task['platform']}\n\nProvide a detailed execution plan and result."
+                    prompt = f"Execute this empire task as the {agent_type} agent:\n\nTitle: {task['title']}\nDescription: {task['description']}\nPlatform: {task['platform']}\n\nProvide a detailed execution plan, code if needed, and result. Be specific and actionable."
                     result = self.brain.think(prompt, agent_type=agent_type, 
-                                              context={"platform": task["platform"], "task_id": task["id"]})
+                                              context={"platform": task["platform"], "task_id": task["id"]},
+                                              max_tokens=4096)
                     self.complete_task(task["id"], result)
                 else:
-                    self.complete_task(task["id"], f"Auto-executed by {agent_type} agent (AI offline)")
+                    self.complete_task(task["id"], f"Auto-executed by {agent_type} agent (AI offline mode)")
 
 # Singleton
 _task_engine = None
