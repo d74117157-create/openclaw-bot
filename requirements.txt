@@ -25,3 +25,4 @@ yfinance>=0.2.28
 schedule
 gspread
 oauth2client
+stripe>=1.0
