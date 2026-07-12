@@ -54,3 +54,12 @@ class ProductFactory:
                 p["revenue"] += amount
                 return p
         return None
+
+# ─── Singleton getter ───────────────────────────────────────────
+_product_factory_instance = None
+
+def get_product_factory():
+    global _product_factory_instance
+    if _product_factory_instance is None:
+        _product_factory_instance = ProductFactory()
+    return _product_factory_instance
