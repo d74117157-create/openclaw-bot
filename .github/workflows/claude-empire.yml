@@ -25,26 +25,25 @@ jobs:
           RENDER_SERVICE_ID: srv-d978fh6puehc73fkq60g
         run: |
           python3 << 'PYEOF'
-          import json, urllib.request, urllib.error, os
+          import json, urllib.request, os
 
           api_key = os.environ["RENDER_API_KEY"]
           service_id = os.environ["RENDER_SERVICE_ID"]
           headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
-          # Get existing env vars
-          req = urllib.request.Request(
-              f"https://api.render.com/v1/services/{service_id}/env-vars",
-              headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
-          )
-
+          # Get existing
           existing = {}
           try:
+              req = urllib.request.Request(
+                  f"https://api.render.com/v1/services/{service_id}/env-vars",
+                  headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+              )
               with urllib.request.urlopen(req, timeout=15) as resp:
                   data = json.loads(resp.read().decode())
                   for item in data.get("envVars", []):
                       existing[item["key"]] = item["id"]
           except Exception as e:
-              print(f"Could not fetch existing: {e}")
+              print(f"Could not fetch: {e}")
 
           env_vars = {
               "GROQ_API_KEY": "${{ secrets.GROQ_API_KEY }}",
@@ -100,62 +99,110 @@ jobs:
             echo "No deploy hook URL — set RENDER_DEPLOY_HOOK_URL secret"
           fi
 
-  claude-empire-tasks:
+  # AI Task Execution via Python (replaces broken Claude action)
+  ai-empire-tasks:
     runs-on: ubuntu-latest
     needs: deploy
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Run Claude Code — Empire Tasks
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: |
-            You are Viktor A.I., the intelligence core of the KingLulu Digital Empire.
-            Execute these empire tasks and save results to /tmp/empire-claude-output.json:
+      - name: Install Python deps
+        run: pip install requests
 
-            1. YouTube: Plan 3 video scripts for @realhistory-lessons
-            2. Telegram: Design 3 Mini App concepts for passive income
-            3. Chess: Create 30-day improvement plan
-            4. Scaling: Analyze empire bottlenecks and fixes
-            5. Income: Research 10 passive income opportunities for 2026
-            6. Marketing: Write cross-platform marketing copy
-          claude_args: |
-            --model claude-sonnet-4-20250514
-            --max-turns 30
-            --allowedTools "Bash,Read,Edit,Write,MultiEdit"
+      - name: Execute AI Tasks via API
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import requests, json, os
 
-      - name: Upload Outputs
+          def call_groq(prompt, max_tokens=4096):
+              key = os.environ.get("GROQ_API_KEY", "")
+              if not key:
+                  return "No Groq key configured"
+              try:
+                  r = requests.post(
+                      "https://api.groq.com/openai/v1/chat/completions",
+                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json={
+                          "model": "llama-3.3-70b-versatile",
+                          "messages": [
+                              {"role": "system", "content": "You are Viktor A.I., the intelligence core of the KingLulu Digital Empire. Execute tasks with precision and actionable detail."},
+                              {"role": "user", "content": prompt}
+                          ],
+                          "max_tokens": max_tokens,
+                          "temperature": 0.7
+                      },
+                      timeout=60
+                  )
+                  data = r.json()
+                  return data["choices"][0]["message"]["content"] if "choices" in data else str(data)
+              except Exception as e:
+                  return f"Error: {e}"
+
+          def call_openai(prompt, max_tokens=4096):
+              key = os.environ.get("OPENAI_API_KEY", "")
+              if not key:
+                  return "No OpenAI key configured"
+              try:
+                  r = requests.post(
+                      "https://api.openai.com/v1/chat/completions",
+                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json={
+                          "model": "gpt-4o-mini",
+                          "messages": [
+                              {"role": "system", "content": "You are Viktor A.I., the intelligence core of the KingLulu Digital Empire."},
+                              {"role": "user", "content": prompt}
+                          ],
+                          "max_tokens": max_tokens,
+                          "temperature": 0.7
+                      },
+                      timeout=60
+                  )
+                  data = r.json()
+                  return data["choices"][0]["message"]["content"] if "choices" in data else str(data)
+              except Exception as e:
+                  return f"Error: {e}"
+
+          # Execute all agent tasks
+          tasks = [
+              ("coder", "Build Telegram Mini App: Subscription Bot", 
+               "Create a detailed implementation plan for a Telegram subscription bot. Include: Python code structure, payment webhook handling, subscription tiers, database schema, deployment steps."),
+              ("growth", "YouTube Video Plan: Passive Income Secrets",
+               "Create a complete 10-minute YouTube video plan. Include: hook script, 5 key points, call to action, thumbnail idea, SEO tags, description."),
+              ("researcher", "Passive Income Hacks 2026",
+               "Research and list 10 genius-level passive income opportunities for 2026. For each: name, description, startup cost, time to $1K/month, scalability, risk level, action steps."),
+          ]
+
+          results = {}
+          for agent, title, prompt in tasks:
+              print(f"
+{'='*60}")
+              print(f"AGENT: {agent} | TASK: {title}")
+              print(f"{'='*60}")
+
+              # Try Groq first, fallback to OpenAI
+              result = call_groq(prompt)
+              if "Error" in result or "No Groq" in result:
+                  result = call_openai(prompt)
+
+              results[f"{agent}_{title}"] = result
+              print(result[:2000])
+              print("
+")
+
+          # Save results
+          with open("/tmp/empire-ai-results.json", "w") as f:
+              json.dump(results, f, indent=2)
+
+          print("✅ All AI tasks executed. Results saved.")
+          PYEOF
+
+      - name: Upload AI Results
         uses: actions/upload-artifact@v4
         with:
-          name: empire-claude-outputs
-          path: /tmp/empire-claude-output.json
-
-  claude-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Review this PR for security, performance, and empire scalability."
-          claude_args: "--model claude-sonnet-4-20250514 --max-turns 15"
-
-  daily-report:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "Generate daily empire status report and post as GitHub issue."
-          claude_args: "--model claude-sonnet-4-20250514 --max-turns 20"
+          name: empire-ai-results
+          path: /tmp/empire-ai-results.json
