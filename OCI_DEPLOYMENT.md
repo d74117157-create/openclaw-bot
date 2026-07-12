@@ -1,44 +1,48 @@
+# OCI Worker Deployment
 
-## Oracle Cloud Infrastructure (OCI) Deployment
-
-### Option 1: Manual VM Setup
-
-1. Create an OCI VM (Ubuntu 22.04, ARM or x86)
-2. SSH into the VM: `ssh ubuntu@YOUR_VM_IP`
-3. Run setup: `bash setup-oci-vm.sh`
-4. Clone repo and configure `.env`
-5. Start with systemd or docker-compose
-
-### Option 2: Terraform (Automated)
+## Option A: Terraform (Automated)
 
 ```bash
 cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your OCI credentials
+export TF_VAR_tenancy_ocid="YOUR_TENANCY_OCID"
+export TF_VAR_compartment_ocid="YOUR_COMPARTMENT_OCID"
+export TF_VAR_ssh_public_key="$(cat ~/.ssh/openclaw_oci.pub)"
 terraform init
 terraform apply
 ```
 
-### Option 3: GitHub Actions Auto-Deploy
+Grab the `public_ip` output and add it to GitHub Secrets as `OCI_HOST`.
 
-1. Add these secrets to your GitHub repository:
-   - `OCI_VM_IP` — Your VM's public IP
-   - `OCI_USER` — SSH username (usually `ubuntu`)
-   - `OCI_SSH_KEY` — Private SSH key for the VM
+## Option B: Manual VM + GitHub Actions
 
-2. Push to `main` branch triggers auto-deployment
+1. Create an Oracle Linux 8 VM (Always Free tier: VM.Standard.A1.Flex)
+2. Add your SSH public key during creation
+3. SSH in: `ssh opc@YOUR_VM_IP`
+4. Run: `bash <(curl -s https://raw.githubusercontent.com/d74117157-create/openclaw-bot/main/scripts/oci-setup.sh)`
+5. Add `OCI_HOST`, `OCI_USER=opc`, and `OCI_SSH_KEY` (private key) to GitHub Secrets
+6. Every push to `main` auto-deploys to the VM
 
-### Required GitHub Secrets for OCI
+## Required GitHub Secrets
 
-| Secret | Description |
-|--------|-------------|
-| `OCI_VM_IP` | Public IP of your OCI VM |
-| `OCI_USER` | SSH username (e.g., `ubuntu`) |
-| `OCI_SSH_KEY` | Private SSH key (full key content) |
+| Secret | Value |
+|--------|-------|
+| `OCI_HOST` | VM public IP |
+| `OCI_USER` | `opc` (default) |
+| `OCI_SSH_KEY` | Private SSH key (full PEM) |
 
-### OCI VM Firewall Rules
+## Architecture
 
-Ensure these ports are open in OCI Security List:
-- 22 (SSH)
-- 8080 (Health server)
-- 3000 (Optional web port)
+```
+GitHub Push
+    │
+    ▼
+GitHub Actions ──SSH──► OCI Worker (Oracle Linux 8)
+                           │
+                           ▼
+                    Docker Container (openclaw:latest)
+                           │
+                    ┌──────┴──────┐
+                    ▼             ▼
+              Discord Bot    Telegram Bots
+              Slack Bot      Trading Engine
+```

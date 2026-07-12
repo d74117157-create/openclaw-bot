@@ -2,7 +2,7 @@
 
 Integrates with:
 - freqtrade (crypto strategy execution)
-- Binance/Alpaca APIs (direct execution)
+- Binance APIs (direct execution)
 - Claude AI (strategy generation & analysis)
 - OpenClaw swarm (monitoring & alerts)
 """
@@ -174,7 +174,7 @@ class RiskGuardian:
 # ── Exchange Connectors ─────────────────────────────────────────────────────
 
 class ExchangeConnector:
-    """Abstract exchange connector. Implement for Binance, Alpaca, etc."""
+    """Abstract exchange connector. Implement for Binance, etc."""
 
     async def get_price(self, pair: str) -> float:
         raise NotImplementedError

@@ -1,0 +1,17 @@
+#cloud-config
+package_update: true
+packages:
+  - docker
+  - docker-compose
+  - git
+  - curl
+  - jq
+
+runcmd:
+  - systemctl enable docker
+  - systemctl start docker
+  - usermod -aG docker opc
+  - mkdir -p /opt/openclaw
+  - cd /opt/openclaw && git clone https://github.com/d74117157-create/openclaw-bot.git app
+  - cd /opt/openclaw/app && docker build -t openclaw:latest .
+  - echo "OpenClaw worker ready" > /opt/openclaw/ready.txt
