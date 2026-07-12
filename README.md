@@ -1,148 +1,282 @@
-# 🦅 OpenClaw Empire v3 — Trading God Edition
+# 🐾 OpenClaw Elite - Complete Swarm Documentation
 
-**Commit:** `0806bba` | **Pushed:** 2026-07-11 14:47 UTC
-
----
-
-## What's New in v3
-
-### 🔥 24/7 Trading Engine (`empire/trading.py`)
-- **Claude Strategy Engine** — AI generates trade signals from live market data
-- **Risk Guardian** — Hard stops enforced 24/7, no exceptions
-- **Exchange Connectors** — Binance (live/testnet) + Alpaca ready
-- **Freqtrade Bridge** — Optional integration with your freqtrade repo
-- **Paper/Live/Dry modes** — Start safe, go live when ready
-
-### 🛡️ Hard Stop Rules (Non-Negotiable)
-| Rule | Default | Override |
-|------|---------|----------|
-| Daily Loss Limit | -5% | `MAX_DAILY_LOSS_PCT` env |
-| Max Position Size | 20% portfolio | `MAX_POSITION_PCT` env |
-| Per-Trade Stop Loss | -3% | `STOP_LOSS_PCT` env |
-| Take Profit | +6% | `TAKE_PROFIT_PCT` env |
-| Trailing Stop | -2% from peak | Built-in |
-| Max Positions | 5 concurrent | Built-in |
-| Max Trades/Hour | 3 | Built-in |
-| Confidence Floor | 0.60 | Built-in |
-| Blacklist | SHIB, PEPE, FLOKI, DOGE | Built-in |
-
-### 🤖 Bot Commands
-
-**Discord:**
-- `!empire` — Status
-- `!trade` — Live trading dashboard
-- `!positions` — Open positions with P&L
-- `!build <repo> <prompt>` — Clone & generate code
-- `!stop` — Emergency halt all trading
-- `!start` — Resume trading
-
-**Telegram:**
-- `/empire` — Status
-- `/trade` — Trading status
-- `/stop` — Halt trading
-- `/start` — Resume trading
-
-**Slack:**
-- Mention "empire" — Status
-- "trade status" — Live P&L
-- "stop trading" — Emergency halt
-
-### 🌐 API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Full status |
-| `/health` | GET | Health check |
-| `/empire/status` | GET | Mesh node status |
-| `/empire/build` | POST | Clone repo + Claude build |
-| `/trading/status` | GET | Live trading engine status |
-| `/trading/positions` | GET | All positions (open/closed) |
-| `/trading/signal` | POST | Manual test signal |
-| `/trading/stop` | POST | Emergency stop |
-| `/trading/start` | POST | Resume trading |
-| `/trading/risk` | GET | Risk boundary status |
-| `/trading/claude-analyze` | POST | Claude portfolio analysis |
+**Your AI Swarm. Your Empire. Your Documentation.**
 
 ---
 
-## Environment Variables (Set These in Render)
-
-### Required
-- `ANTHROPIC_API_KEY` — Claude API for strategy generation
-- `DISCORD_TOKEN` — Your Discord bot
-- `TELEGRAM_BOT1_TOKEN` — Bot 1
-- `TELEGRAM_BOT2_TOKEN` — Bot 2  
-- `TELEGRAM_BOT3_TOKEN` — Bot 3 (Super)
-- `SLACK_BOT_TOKEN` — Slack bot
-- `SLACK_APP_TOKEN` — Slack app-level
-
-### Trading (Set before going live!)
-- `TRADING_MODE` — `paper` (default), `live`, or `dry_run`
-- `BINANCE_API_KEY` — Binance API key
-- `BINANCE_API_SECRET` — Binance secret
-- `ALPACA_API_KEY` — Alpaca key (stocks)
-- `ALPACA_API_SECRET` — Alpaca secret
-- `FREQTRADE_URL` — Optional: `http://localhost:8080`
-- `MAX_DAILY_LOSS_PCT` — Default: 5.0
-- `MAX_POSITION_PCT` — Default: 20.0
-- `STOP_LOSS_PCT` — Default: 3.0
-- `TAKE_PROFIT_PCT` — Default: 6.0
-
----
-
-## How to Go Live
-
-1. **Start in Paper Mode** (default) — trades simulated, no real money
-2. **Watch for 48 hours** — verify signals, check P&L, tune risk params
-3. **Add exchange keys** — Binance or Alpaca
-4. **Set `TRADING_MODE=live`** — real money, real trades
-5. **Never disable Risk Guardian** — it's your lifeline
-
----
-
-## Architecture
+## 📁 Repository Structure
 
 ```
-GitHub Push → Render (Primary) + Oracle Cloud (Worker)
-                   ↓
-    Discord + 3×Telegram + Slack bots
-                   ↓
-        Empire Trading Engine
-           ↓
-    ┌──────┴──────┐
-    ↓             ↓
-Claude AI    Binance/Alpaca
-(Strategies)   (Execution)
-    ↓             ↓
-Risk Guardian ←── Hard Stops
-    ↓
-Swarm Alerts (24/7 monitoring)
+openclaw-bot/
+├── victor.py                  ← 🧠 MASTER ORCHESTRATOR (talk to this)
+├── main.py                    ← 🚀 Entry point for Render (starts everything)
+├── automation/
+│   ├── youtube_pipeline.py    ← 📹 YouTube content creation
+│   └── trading_signals.py     ← 📈 Crypto trading signals
+├── agents/
+│   ├── victor.py              ← Victor orchestrator agent
+│   ├── claude.py              ← Claude coder agent
+│   └── ...                    ← Other agent personalities
+├── memory/                    ← Swarm memory & state
+├── scripts/
+│   ├── start.sh               ← Render start script
+│   └── test_imports.py        ← Import verification
+├── terraform/                 ← OCI VM provisioning
+├── .github/workflows/         ← Auto-deploy pipelines
+├── logs/                      ← Runtime logs
+├── data/                      ← Data storage
+└── requirements.txt           ← Python dependencies
 ```
 
 ---
 
-## Your Integrated Repos
+## 🗣️ HOW TO TALK TO YOUR SWARM
 
-| Repo | Role in Empire |
-|------|---------------|
-| `openclaw-bot` | **Core swarm** (this repo) |
-| `freqtrade` | Strategy engine backend |
-| `TradingAgents-CN` | AI trading analysis |
-| `empire-*` | Various empire modules |
-| `Arsenal` | ❌ Deleted per request |
+### Method 1: Direct Command (Terminal/SSH)
+```bash
+python3 victor.py "make a youtube video about crypto"
+python3 victor.py "check the markets"
+python3 victor.py "health check"
+python3 victor.py "broadcast hello world"
+```
+
+### Method 2: Telegram (Bots 1, 2, 3, Super)
+Just message any of your bots naturally:
+- "make me a video"
+- "what are the trading signals"
+- "status report"
+
+### Method 3: Discord
+Tag your bot or use the configured channel. Same natural language.
+
+### Method 4: Slack
+DM the bot or post in the integrated channel.
+
+### Method 5: Render Dashboard (Manual Trigger)
+Go to your Render dashboard → Shell → run:
+```bash
+cd /app && python3 victor.py "your command here"
+```
 
 ---
 
-## Next Steps
+## 🎬 YOUTUBE CONTENT PIPELINE
 
-1. **Render will auto-deploy** on this push
-2. **Set your API keys** in Render dashboard
-3. **Test with paper mode** first
-4. **Add Oracle Cloud VM** for redundancy
-5. **Command your empire** from Discord/Telegram/Slack
+### What It Does
+1. **Fetches trending topics** from YouTube API (using your GOOGLE_API_KEY)
+2. **Generates a script** with hook, body, CTA
+3. **Creates a project folder** with all instructions ready
 
-**You are now a trading god.** The swarm trades while you sleep. Claude generates strategies. Risk Guardian never sleeps. Hard stops protect your capital.
+### How to Run
+```bash
+python3 automation/youtube_pipeline.py [NICHE] [REGION]
+```
+
+**Examples:**
+```bash
+python3 automation/youtube_pipeline.py tech US
+python3 automation/youtube_pipeline.py crypto US
+python3 automation/youtube_pipeline.py gaming GB
+```
+
+### Output
+Creates a folder in `/tmp/youtube_projects/project_YYYYMMDD_HHMMSS/` containing:
+- `script.json` — the full script
+- `INSTRUCTIONS.txt` — step-by-step rendering guide
+
+### Next Steps (Manual for now)
+1. Read the script
+2. Use CapCut, Canva, or Pictory to create the video
+3. Upload to YouTube
+
+**Future:** Auto-render with ffmpeg + text-to-speech (coming in v2)
 
 ---
 
-*Built by OpenClaw Empire v3 | Claude-integrated | 24/7 autonomous*
+## 📈 TRADING SIGNALS PIPELINE
+
+### What It Does
+1. **Scans Binance** for BTC, ETH, SOL, DOGE, ADA, XRP, DOT
+2. **Analyzes momentum** (24h change + volume)
+3. **Generates signals**: STRONG_BUY, BUY, STRONG_SELL, SELL, HOLD
+4. **Posts to all platforms** automatically
+
+### How to Run
+```bash
+# Scan all symbols
+python3 automation/trading_signals.py
+
+# Get top opportunity only
+python3 automation/trading_signals.py --top
+```
+
+### No Account Needed
+Uses free Binance public API. No API keys required.
+
+---
+
+## 🧠 VICTOR ORCHESTRATOR COMMANDS
+
+Victor understands natural language. Just say what you want:
+
+| What You Say | What Happens |
+|---|---|
+| "make a youtube video" | Runs YouTube pipeline, posts to all platforms |
+| "check the markets" | Runs trading signals, posts top opportunity |
+| "health check" | System status report to all platforms |
+| "broadcast [message]" | Posts your message everywhere |
+| "help" | Shows all available commands |
+| "create content about [topic]" | YouTube pipeline with custom niche |
+
+---
+
+## ⚙️ ENVIRONMENT VARIABLES (Render)
+
+Set these in your Render dashboard → Environment:
+
+| Variable | What It Is | Where to Get It |
+|---|---|---|
+| `DISCORD_TOKEN` | Your Discord bot token | Discord Developer Portal |
+| `TELEGRAM_BOT_TOKEN_1` | Bot 1 token | @BotFather |
+| `TELEGRAM_BOT_TOKEN_2` | Bot 2 token | @BotFather |
+| `TELEGRAM_BOT_TOKEN_3` | Bot 3 token | @BotFather |
+| `TELEGRAM_BOT_TOKEN_SUPER` | Super bot token | @BotFather |
+| `SLACK_APP_TOKEN` | Slack app token | Slack API |
+| `SLACK_BOT_TOKEN` | Slack bot token | Slack API |
+| `GOOGLE_API_KEY` | YouTube Data API | Google Cloud Console |
+| `DISCORD_WEBHOOK_URL` | Discord webhook | Server Settings → Integrations |
+| `SLACK_WEBHOOK_URL` | Slack webhook | Slack App → Incoming Webhooks |
+| `GITHUB_TOKEN` | GitHub PAT | GitHub Settings → Developer |
+| `RENDER_API_KEY` | Render API key | Render Dashboard |
+| `OCI_HOST` | Oracle VM IP | OCI Console |
+| `OCI_USER` | Oracle VM user | Usually `opc` |
+| `OCI_SSH_KEY` | SSH private key | Generated during VM setup |
+
+---
+
+## 🚀 HOW TO DEPLOY
+
+### Auto-Deploy (GitHub → Render)
+1. Push code to GitHub: `d74117157-create/openclaw-bot`
+2. Render auto-deploys from `main` branch
+3. Check: https://openclaw-bot.onrender.com
+
+### Manual Deploy (Render Dashboard)
+1. Go to https://dashboard.render.com
+2. Select service: `srv-d978fh6puehc73fkq60g`
+3. Click "Manual Deploy" → "Deploy Latest Commit"
+
+### Deploy Hook (Fastest)
+```bash
+curl https://api.render.com/deploy/srv-d978fh6puehc73fkq60g?key=YOUR_DEPLOY_HOOK_KEY
+```
+
+### Deploy to Oracle Cloud (Backup)
+```bash
+# GitHub Actions runs automatically on push
+# Or manually:
+terraform apply terraform/oci-vm.tf
+```
+
+---
+
+## 📊 MONITORING & LOGS
+
+### Check Logs
+```bash
+# Render logs (web dashboard)
+# Or SSH into Render shell:
+tail -f logs/orchestrator.log
+```
+
+### Health Check
+```bash
+python3 victor.py "health check"
+```
+
+### FastAPI Health Server
+```bash
+curl https://openclaw-bot.onrender.com/health
+```
+
+---
+
+## 🔄 AUTOMATION SCHEDULE (Cron Jobs)
+
+Your swarm can run on a schedule. Edit `main.py` or use Render Cron:
+
+| Time | Task |
+|---|---|
+| Every 6 hours | Trading signal scan |
+| Daily 9am | YouTube content generation |
+| Daily 12pm | Health check broadcast |
+| Weekly | Full system report |
+
+To set up: Add cron jobs in Render or use the built-in scheduler in `main.py`.
+
+---
+
+## 🆘 TROUBLESHOOTING
+
+### "Import Error"
+```bash
+pip install -r requirements.txt
+```
+
+### "No Telegram chat IDs found"
+Send a message to your bot first, then run again.
+
+### "Discord webhook failed"
+Check `DISCORD_WEBHOOK_URL` is set correctly in Render env.
+
+### "YouTube API error"
+Verify `GOOGLE_API_KEY` is set and has YouTube Data API v3 enabled.
+
+### Bot not responding
+Check Render service is running: https://openclaw-bot.onrender.com
+
+---
+
+## 🎯 YOUR NEXT STEPS
+
+1. **Set all env vars** in Render dashboard
+2. **Send a test message** to each Telegram bot
+3. **Run**: `python3 victor.py "health check"`
+4. **Run**: `python3 victor.py "make a youtube video"`
+5. **Run**: `python3 victor.py "check the markets"`
+6. **Watch your platforms** — signals and content will appear
+
+---
+
+## 🏗️ ARCHITECTURE
+
+```
+┌─────────────────┐
+│   YOU (Human)   │
+└────────┬────────┘
+         │ Talk naturally
+         ▼
+┌─────────────────┐
+│  VICTOR (Brain) │ ← Parses intent, routes commands
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌──────────┐
+│YouTube │ │ Trading  │ ← Pipelines do the work
+│Pipeline│ │ Signals  │
+└───┬────┘ └────┬─────┘
+    │           │
+    └─────┬─────┘
+          ▼
+┌─────────────────┐
+│  ALL PLATFORMS  │ ← Discord, Telegram, Slack
+│  (Auto-post)    │
+└─────────────────┘
+```
+
+---
+
+**Built by you. Run by Victor. Owned by the swarm.**
+
+*Last updated: 2026-07-11*
