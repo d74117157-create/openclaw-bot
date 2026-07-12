@@ -23,21 +23,21 @@ git push origin main
 Paste these EXACT values in Render → Environment:
 
 ```
-JWT_SECRET_KEY=<YOUR-STRONG-32-BYTE-SECRET-HERE>
-EMPIRE_PASSWORD=<YOUR-COLONEL-PASSWORD-HERE>
+JWT_SECRET_KEY=your-very-long-random-32-byte-string-here-change-now
+EMPIRE_PASSWORD=your-strong-colonel-password-here
 EMPIRE_STATE_PATH=/data/empire-state.json
-XAI_API_KEY=<YOUR-XAI-GROK-KEY-HERE>
-GROQ_API_KEY=<YOUR-GROQ-KEY-HERE>
+XAI_API_KEY=your-xai-grok-api-key-if-you-want-to-use-me-directly
+GROQ_API_KEY=your-groq-key-if-using-gbaby
 PORT=10000
-DISCORD_TOKEN=<YOUR-DISCORD-BOT-TOKEN>
-TELEGRAM_BOT1_TOKEN=<YOUR-TELEGRAM-BOT1-TOKEN>
-TELEGRAM_BOT2_TOKEN=<YOUR-TELEGRAM-BOT2-TOKEN>
-TELEGRAM_BOT3_TOKEN=<YOUR-TELEGRAM-BOT3-TOKEN>
-SLACK_BOT_TOKEN=<YOUR-SLACK-BOT-TOKEN>
-SLACK_APP_TOKEN=<YOUR-SLACK-APP-TOKEN>
-GOOGLE_API_KEY=<YOUR-GOOGLE-API-KEY>
-BINANCE_API_KEY=<YOUR-BINANCE-KEY>
-BINANCE_SECRET_KEY=<YOUR-BINANCE-SECRET>
+DISCORD_TOKEN=<your-discord-bot-token>
+TELEGRAM_BOT1_TOKEN=<your-telegram-bot1-token>
+TELEGRAM_BOT2_TOKEN=<your-telegram-bot2-token>
+TELEGRAM_BOT3_TOKEN=<your-telegram-bot3-token>
+SLACK_BOT_TOKEN=<your-slack-bot-token>
+SLACK_APP_TOKEN=<your-slack-app-token>
+GOOGLE_API_KEY=<your-google-api-key>
+BINANCE_API_KEY=<your-binance-key>
+BINANCE_SECRET_KEY=<your-binance-secret>
 ```
 
 **⚠️ CRITICAL:** Change `JWT_SECRET_KEY` and `EMPIRE_PASSWORD` to strong, unique values BEFORE deploying.
@@ -64,7 +64,7 @@ curl https://your-service.onrender.com/health
 # Login (get JWT token)
 curl -X POST https://your-service.onrender.com/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"password": "<YOUR-COLONEL-PASSWORD>"}'
+  -d '{"password": "your-strong-colonel-password-here"}'
 
 # Empire status (use token from above)
 curl https://your-service.onrender.com/empire/status \
@@ -80,4 +80,4 @@ curl https://your-service.onrender.com/empire/status \
 - **marketing_engine.py** — Content factories + revenue tracking
 
 ## Files Generated
-All files are in the repo root and `assets/` / `references/` directories.
+All files are in the `superswarm/` directory of this repo.
