@@ -1,0 +1,3 @@
+# EXECUTE TRIGGER - 2026-07-12T02:40
+# Auto-execution enabled in start.sh
+# YouTube + Trading + Broadcast on startup
