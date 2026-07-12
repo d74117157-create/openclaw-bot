@@ -32,16 +32,30 @@ jobs:
             fi
           }
 
+          # AI Brain
           set_env_var "GROQ_API_KEY" "${{ secrets.GROQ_API_KEY }}"
           set_env_var "OPENAI_API_KEY" "${{ secrets.OPENAI_API_KEY }}"
-          set_env_var "TRADING_MODE" "paper"
-          set_env_var "EMPIRE_PASSWORD" "${{ secrets.EMPIRE_PASSWORD }}"
-          set_env_var "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
+
+          # Discord
+          set_env_var "DISCORD_TOKEN" "${{ secrets.DISCORD_TOKEN }}"
+          set_env_var "DISCORD_GUILD_ID" "${{ secrets.DISCORD_GUILD_ID }}"
+          set_env_var "DISCORD_CHANNEL_ID" "${{ secrets.DISCORD_CHANNEL_ID }}"
+
+          # Telegram
           set_env_var "TELEGRAM_BOT1_TOKEN" "${{ secrets.TELEGRAM_BOT1_TOKEN }}"
           set_env_var "TELEGRAM_BOT2_TOKEN" "${{ secrets.TELEGRAM_BOT2_TOKEN }}"
           set_env_var "TELEGRAM_BOT3_TOKEN" "${{ secrets.TELEGRAM_BOT3_TOKEN }}"
+
+          # Slack
           set_env_var "SLACK_BOT_TOKEN" "${{ secrets.SLACK_BOT_TOKEN }}"
           set_env_var "SLACK_APP_TOKEN" "${{ secrets.SLACK_APP_TOKEN }}"
+
+          # Google/YouTube
+          set_env_var "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
+
+          # Empire
+          set_env_var "TRADING_MODE" "paper"
+          set_env_var "EMPIRE_PASSWORD" "${{ secrets.EMPIRE_PASSWORD }}"
 
           echo "All environment variables set!"
 
