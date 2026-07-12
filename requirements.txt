@@ -10,6 +10,9 @@ GitPython>=3.1.40
 uvicorn>=0.24.0
 fastapi>=0.104.0
 python-dotenv>=1.0.0
+groq>=0.4.0
+playwright>=1.40.0
+
 # Trading
 ccxt>=4.2.0
 pandas>=2.0.0
