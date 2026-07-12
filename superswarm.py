@@ -1,69 +1,64 @@
 """
-SUPERSWARM — Digital Empire Money Machine
-No dependencies. No bloat. Just revenue.
+OpenClaw Superswarm — Core Swarm Intelligence
+Multi-agent coordination. Task distribution. Self-healing.
 """
 import os
 import json
-import asyncio
-from datetime import datetime, timedelta
+import time
+import random
+from datetime import datetime
+from typing import Dict, List, Any
 
-class Superswarm:
-    """The brain. Routes everything. Thinks for itself."""
+AGENTS = [
+    {"id": "coder", "role": "Code & Automation", "status": "idle"},
+    {"id": "researcher", "role": "Market Research", "status": "idle"},
+    {"id": "ops", "role": "Operations & DevOps", "status": "idle"},
+    {"id": "growth", "role": "Growth & Marketing", "status": "idle"},
+    {"id": "qa", "role": "Quality Assurance", "status": "idle"},
+    {"id": "risk_manager", "role": "Trading Risk", "status": "idle"},
+    {"id": "content_factory", "role": "Content Production", "status": "idle"},
+]
 
+class SuperswarmCore:
     def __init__(self):
-        self.platforms = {}
-        self.revenue = 0.0
-        self.products = []
-        self.content_queue = []
-        self.affiliate_links = {}
+        self.agents = {a["id"]: a.copy() for a in AGENTS}
+        self.task_queue = []
+        self.completed_tasks = []
 
-    def think(self, goal: str):
-        """The swarm thinks. Generates next best action."""
-        strategies = {
-            "maximize_revenue": [
-                "Launch new digital product",
-                "Optimize highest-converting funnel", 
-                "Scale winning ad/affiliate",
-                "Email list promotion",
-                "Bundle upsell campaign"
-            ],
-            "grow_audience": [
-                "Viral TikTok hook",
-                "YouTube SEO content",
-                "Free lead magnet",
-                "Cross-platform collab",
-                "Trend jacking"
-            ],
-            "automate": [
-                "Set up email sequence",
-                "Schedule 30 days content",
-                "Auto-reply DM funnel",
-                "Affiliate link rotation",
-                "Analytics dashboard"
-            ]
-        }
-        return strategies.get(goal, ["Create content", "Drive traffic", "Convert sales"])
+    def boot(self):
+        for agent_id in self.agents:
+            self.agents[agent_id]["status"] = "online"
+            self.agents[agent_id]["booted_at"] = datetime.utcnow().isoformat()
+        print(f"[SWARM] {len(self.agents)} agents online.")
 
-    def execute(self, action: str):
-        """Execute without asking. Log everything."""
-        print(f"[SWARM] ⚡ Executing: {action}")
-        # Log to memory
-        self._log_action(action)
-        return {"status": "executed", "action": action, "timestamp": datetime.now().isoformat()}
+    def assign_task(self, agent_id: str, task: Dict) -> Dict:
+        if agent_id not in self.agents:
+            return {"error": "Agent not found"}
+        self.agents[agent_id]["status"] = "working"
+        self.agents[agent_id]["current_task"] = task
+        return {"status": "assigned", "agent": agent_id, "task": task}
 
-    def _log_action(self, action: str):
-        """Every move is remembered."""
-        with open("swarm_log.txt", "a") as f:
-            f.write(f"{datetime.now().isoformat()} | {action}\n")
+    def complete_task(self, agent_id: str, result: Any):
+        self.agents[agent_id]["status"] = "idle"
+        self.agents[agent_id]["last_result"] = result
+        self.completed_tasks.append({
+            "agent": agent_id,
+            "result": result,
+            "time": datetime.utcnow().isoformat()
+        })
 
-    def get_status(self):
+    def get_status(self) -> Dict:
         return {
-            "revenue": self.revenue,
-            "products": len(self.products),
-            "queue": len(self.content_queue),
-            "timestamp": datetime.now().isoformat(),
-            "mode": "money_machine"
+            "agents": self.agents,
+            "queue_length": len(self.task_queue),
+            "completed": len(self.completed_tasks)
         }
 
-def get_superswarm():
-    return Superswarm()
+    def auto_heal(self):
+        """Restart any agent that appears stuck."""
+        for agent_id, agent in self.agents.items():
+            if agent.get("status") == "working":
+                task_time = agent.get("current_task", {}).get("assigned_at", 0)
+                if time.time() - task_time > 3600:  # 1 hour stuck
+                    agent["status"] = "idle"
+                    agent["healed_at"] = datetime.utcnow().isoformat()
