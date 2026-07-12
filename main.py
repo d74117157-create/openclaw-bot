@@ -1,6 +1,7 @@
 """OpenClaw Superswarm — Multi-platform bot swarm + AI builder + 24/7 Trading Engine."""
 import os
 import asyncio
+from memory.core import get_memory
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -259,6 +260,7 @@ async def _start_discord():
         @bot.event
         async def on_ready():
             print(f"[DISCORD] ✅ Logged in as {bot.user}")
+        get_memory().log_event("bot_connect", "discord", f"Logged in as {bot.user}")
 
         @bot.command()
         async def empire(ctx):
