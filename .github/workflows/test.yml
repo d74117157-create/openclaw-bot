@@ -1,0 +1,77 @@
+name: Workflow Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test Python imports
+        run: |
+          python3 -c "import sys; print(f'Python: {sys.version}')"
+          python3 -c "
+          import json
+          print('✅ JSON works')
+          "
+
+      - name: Verify file structure
+        run: |
+          echo "=== EMPIRE FILES ==="
+          ls -la *.py 2>/dev/null || echo "No .py files in root"
+          echo ""
+          echo "=== TEMU CLONE ==="
+          ls -la temu_clone/ 2>/dev/null || echo "No temu_clone dir"
+          echo ""
+          echo "=== AGENTS ==="
+          ls -la agents/ 2>/dev/null || echo "No agents dir"
+          echo ""
+          echo "=== CORE ==="
+          ls -la core/ 2>/dev/null || echo "No core dir"
+
+      - name: Check secrets exist
+        env:
+          GROQ: ${{ secrets.GROQ_API_KEY }}
+          OPENAI: ${{ secrets.OPENAI_API_KEY }}
+          DISCORD: ${{ secrets.DISCORD_TOKEN }}
+        run: |
+          if [ -n "$GROQ" ]; then echo "✅ GROQ_API_KEY set"; else echo "❌ GROQ_API_KEY missing"; fi
+          if [ -n "$OPENAI" ]; then echo "✅ OPENAI_API_KEY set"; else echo "❌ OPENAI_API_KEY missing"; fi
+          if [ -n "$DISCORD" ]; then echo "✅ DISCORD_TOKEN set"; else echo "❌ DISCORD_TOKEN missing"; fi
+
+      - name: Simulate task execution
+        run: |
+          echo "=== SIMULATING AGENT TASKS ==="
+          echo ""
+          echo "🧑‍💻 CODER AGENT:"
+          echo "  - Build Telegram Mini App #1: Subscription Bot"
+          echo "  - Build Telegram Mini App #2: Trading Signals"
+          echo "  - Build Telegram Mini App #3: Content Paywall"
+          echo ""
+          echo "📈 GROWTH AGENT:"
+          echo "  - Post YouTube Video #1: Passive Income Secrets"
+          echo "  - Post YouTube Video #2: AI Bot Empire Setup"
+          echo "  - Post YouTube Video #3: From Zero to \$20K"
+          echo "  - Execute Cross-Platform Marketing Blitz"
+          echo "  - Analyze Empire Scaling Bottlenecks"
+          echo ""
+          echo "🔬 RESEARCHER AGENT:"
+          echo "  - Research 10 Genius Passive Income Hacks"
+          echo "  - Create 30-Day Chess Improvement Plan"
+          echo ""
+          echo "🛠️ OPS AGENT:"
+          echo "  - Monitor All Platform Health"
+          echo ""
+          echo "🧪 QA AGENT:"
+          echo "  - Verify All Deployments and Test Bots"
+          echo ""
+          echo "🐝 ORCHESTRATOR:"
+          echo "  - Strategic Empire Review and Pivot Plan"
+          echo ""
+          echo "=== ALL TASKS ASSIGNED ==="
+          echo "Ready for self-running execution on Render"
