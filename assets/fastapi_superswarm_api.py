@@ -18,7 +18,7 @@ import uvicorn
 # ─── CONFIG ──────────────────────────────────────────────────────
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-CHANGE-IMMEDIATELY")
 EMPIRE_PASSWORD = os.getenv("EMPIRE_PASSWORD", "colonel-default")
-EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/data/empire-state.json")
+EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/tmp/empire-state.json")
 PORT = int(os.getenv("PORT", 10000))
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
