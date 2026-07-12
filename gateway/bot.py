@@ -234,6 +234,38 @@ async def cmd_positions(interaction: discord.Interaction, exchange: str):
         await interaction.followup.send(f"❌ Error: {str(e)}")
 
 
+
+
+@tree.command(name="portfolio", description="View swarm portfolio history and stats")
+@app_commands.describe(asset="Filter by asset (e.g. USDT, BTC)")
+async def cmd_portfolio(interaction: discord.Interaction, asset: str = None):
+    await interaction.response.defer()
+    try:
+        from memory.core import get_memory
+        mem = get_memory()
+
+        # Get summary
+        summary = mem.get_swarm_summary()
+
+        # Get portfolio history
+        history = mem.get_portfolio_history(asset, limit=10)
+
+        embed = discord.Embed(title="📊 Swarm Portfolio", color=0x00ff00)
+        embed.add_field(name="Total Trades", value=str(summary.get("total_trades", 0)), inline=True)
+        embed.add_field(name="Total P&L", value=f"${summary.get('total_pnl', 0):,.2f}", inline=True)
+        embed.add_field(name="Decisions Logged", value=str(summary.get("total_decisions", 0)), inline=True)
+
+        if history:
+            latest = history[0]
+            embed.add_field(name="Latest Balance", value=f"${latest.get('value_usd', 0):,.2f} {latest.get('asset', 'USDT')}", inline=True)
+            embed.add_field(name="Last Update", value=latest.get('timestamp', 'N/A')[:16], inline=True)
+
+        embed.add_field(name="DB Path", value=summary.get("db_path", "N/A"), inline=False)
+
+        await interaction.followup.send(embed=embed)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {str(e)}")
+
 # -- Run ----------------------------------------------------------------------
 
 if __name__ == "__main__":
