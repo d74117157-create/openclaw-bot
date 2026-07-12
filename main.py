@@ -1,9 +1,8 @@
 """
 SUPERSWARM — KingLulu Digital Empire
-Main entry point. Boots everything.
+Main entry point. Boots everything + keeps FastAPI alive.
 """
 import os
-import asyncio
 import threading
 from datetime import datetime
 
@@ -14,6 +13,11 @@ from platform_engine import get_platform_engine
 from marketing_engine import get_marketing_engine
 from master_orchestrator import get_master_orchestrator
 from product_catalog import get_all_products
+
+# FastAPI server import
+from assets.fastapi_superswarm_api import app, uvicorn
+
+PORT = int(os.getenv("PORT", 10000))
 
 def boot_empire():
     """Boot the entire empire."""
@@ -45,4 +49,10 @@ def boot_empire():
     return master
 
 if __name__ == "__main__":
-    empire = boot_empire()
+    # Boot empire in background thread
+    boot_thread = threading.Thread(target=boot_empire, daemon=True)
+    boot_thread.start()
+
+    # Start FastAPI server (blocks, keeps Render web service alive)
+    print(f"[MAIN] Starting FastAPI on port {PORT}")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
