@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-OpenClaw Superswarm v3.1 — Master Orchestrator
-Boots FastAPI + Real Bot Swarm + AI Agents + Revenue Engines
+OpenClaw Superswarm v3.2 — Master Orchestrator
+Boots FastAPI + Real Bot Swarm + AI Brain + Revenue Engines
 """
 import os, sys, asyncio, json, threading, time
 from datetime import datetime
@@ -15,6 +15,7 @@ from core.config import settings
 from youtube_engine import YouTubeEngine
 from binance_engine import BinancePaperTrader
 from revenue_tracker import RevenueTracker
+from ai_brain import get_brain
 
 class MasterOrchestrator:
     def __init__(self):
@@ -24,13 +25,24 @@ class MasterOrchestrator:
         self.youtube = YouTubeEngine()
         self.trader = BinancePaperTrader()
         self.revenue = RevenueTracker()
+        self.brain = get_brain()
 
     def boot(self):
         print("=" * 60)
-        print("  OPENCLAW SUPERSWARM v3.1 — BOOT SEQUENCE")
+        print("  OPENCLAW SUPERSWARM v3.2 — BOOT SEQUENCE")
         print("=" * 60)
 
         empire.log("boot_sequence", {"phase": "init"})
+
+        # Boot AI brain first
+        print("[BOOT] Initializing AI brain...")
+        if self.brain.is_configured():
+            print(f"[BOOT] AI brain online. Primary: {self.brain.primary}")
+            empire.log("ai_brain", {"status": "online", "primary": self.brain.primary})
+        else:
+            print("[BOOT] ⚠️ No AI brain configured. Set GROQ_API_KEY or GROK_API_KEY")
+            empire.log("ai_brain", {"status": "offline"})
+
         self.revenue.boot()
         self.trader.boot()
         self.youtube.boot()
@@ -61,7 +73,11 @@ class MasterOrchestrator:
     def _heartbeat_loop(self):
         while self.running:
             time.sleep(60)
-            empire.log("heartbeat", {"uptime": str(datetime.utcnow() - self.boot_time)})
+            empire.log("heartbeat", {
+                "uptime": str(datetime.utcnow() - self.boot_time),
+                "ai_calls": self.brain.total_calls,
+                "ai_failures": self.brain.failed_calls
+            })
 
     def _revenue_loop(self):
         while self.running:
