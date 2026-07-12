@@ -15,3 +15,8 @@ AGENT_DISPATCH = {
 }
 
 __all__ = ["AGENT_DISPATCH", "AGENT_PERSONAS"]
+
+# Trading agents
+from .trader import BaseTrader, get_trader
+from .trader_binance import BinanceTrader
+from .risk_manager import RiskManager
