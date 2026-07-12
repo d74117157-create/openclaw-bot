@@ -1,22 +1,30 @@
 """
 YouTube Automation Engine — @realhistory-lessons
+Uses Google API Key for read operations, OAuth for write operations.
 """
 import os, requests
 from datetime import datetime
+from google_auth_manager import get_google_auth
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "")
 
 class YouTubeEngine:
     BASE_URL = "https://www.googleapis.com/youtube/v3"
+    ANALYTICS_URL = "https://youtubeanalytics.googleapis.com/v2"
 
     def __init__(self):
         self.api_key = GOOGLE_API_KEY
         self.channel_id = YOUTUBE_CHANNEL_ID
         self.stats = {"subscribers": 0, "views": 0, "videos": 0}
+        self.auth = get_google_auth()
 
     def boot(self):
         print("[YOUTUBE] Engine initialized.")
+        if self.auth.is_configured():
+            print("[YOUTUBE] OAuth configured. Write operations enabled.")
+        else:
+            print("[YOUTUBE] OAuth not configured. Read-only mode.")
 
     def run_automation(self):
         if not self.api_key:
@@ -24,6 +32,8 @@ class YouTubeEngine:
             return
         self._fetch_stats()
         self._check_comments()
+        self._fetch_analytics()
+        print(f"[YOUTUBE] Automation cycle complete. Subs: {self.stats.get('subscribers', 0)}")
 
     def _fetch_stats(self):
         try:
@@ -42,6 +52,32 @@ class YouTubeEngine:
                 print(f"[YOUTUBE] Stats: {self.stats}")
         except Exception as e:
             print(f"[YOUTUBE] Stats error: {e}")
+
+    def _fetch_analytics(self):
+        """Fetch YouTube Analytics data (requires OAuth)."""
+        if not self.auth.is_configured():
+            return
+        try:
+            # YouTube Analytics API v2
+            end_date = datetime.utcnow().strftime("%Y-%m-%d")
+            start_date = (datetime.utcnow().replace(day=1)).strftime("%Y-%m-%d")
+
+            url = f"{self.ANALYTICS_URL}/reports"
+            params = {
+                "ids": f"channel=={self.channel_id}",
+                "startDate": start_date,
+                "endDate": end_date,
+                "metrics": "views,estimatedMinutesWatched,averageViewDuration,subscribersGained",
+                "dimensions": "day"
+            }
+
+            result = self.auth.make_authenticated_request(url, "GET", params=params)
+            if "error" not in result:
+                print(f"[YOUTUBE] Analytics fetched for {start_date} to {end_date}")
+            else:
+                print(f"[YOUTUBE] Analytics error: {result.get('error')}")
+        except Exception as e:
+            print(f"[YOUTUBE] Analytics fetch error: {e}")
 
     def _check_comments(self):
         try:
@@ -82,3 +118,33 @@ class YouTubeEngine:
             return [{"title": i["snippet"]["title"], "videoId": i["id"]["videoId"]} for i in r.json().get("items", [])]
         except:
             return []
+
+    def upload_video(self, title: str, description: str, category_id: str = "22",
+                     privacy_status: str = "private", file_path: str = None) -> Dict:
+        """Upload a video to YouTube (requires OAuth)."""
+        if not self.auth.is_configured():
+            return {"error": "OAuth not configured. Cannot upload."}
+
+        try:
+            # Step 1: Create video metadata
+            url = f"{self.BASE_URL}/videos"
+            body = {
+                "snippet": {
+                    "title": title,
+                    "description": description,
+                    "categoryId": category_id
+                },
+                "status": {
+                    "privacyStatus": privacy_status
+                }
+            }
+
+            result = self.auth.make_authenticated_request(url, "POST", data=body)
+            if "id" in result:
+                print(f"[YOUTUBE] Video created: {result['id']}")
+                return {"status": "created", "video_id": result["id"]}
+            else:
+                return {"error": result.get("error", "Unknown error")}
+
+        except Exception as e:
+            return {"error": str(e)}
