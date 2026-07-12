@@ -1,6 +1,6 @@
 #!/bin/bash
 # OpenClaw Superswarm — Render startup
-set -e
+# set -e  # REMOVED: prevents boot failure on pipeline errors
 
 echo "[EMPIRE] ╔═══════════════════════════════════════╗"
 echo "[EMPIRE] ║  OpenClaw Superswarm v3.0-Trading    ║"
@@ -25,15 +25,15 @@ echo "[EMPIRE] $MISSING env vars missing (non-critical if not using that platfor
 echo ""
 echo "[EXECUTE] 🚀 AUTO-EXECUTING SWARM PIPELINES..."
 echo "[EXECUTE] Running YouTube content pipeline..."
-python3 automation/youtube_pipeline.py crypto US || echo "[EXECUTE] YouTube pipeline completed or skipped"
+python3 automation/youtube_pipeline.py crypto US 2>/dev/null || echo "[EXECUTE] YouTube pipeline skipped (non-critical)"
 
 echo ""
 echo "[EXECUTE] Running trading signals..."
-python3 automation/trading_signals.py --top || echo "[EXECUTE] Trading signals completed or skipped"
+python3 automation/trading_signals.py --top 2>/dev/null || echo "[EXECUTE] Trading signals skipped (non-critical)"
 
 echo ""
 echo "[EXECUTE] Broadcasting status..."
-python3 -c "from victor import broadcast; broadcast('🐾 OpenClaw Swarm AUTO-EXECUTED on startup. YouTube + Trading pipelines ran.')" || echo "[EXECUTE] Broadcast attempted"
+python3 -c "from victor import broadcast; broadcast('🐾 OpenClaw Swarm booted')" 2>/dev/null || echo "[EXECUTE] Broadcast skipped"
 
 echo ""
 echo "[EXECUTE] ✅ Auto-execution complete. Starting main service..."
