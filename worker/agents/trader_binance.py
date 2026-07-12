@@ -7,6 +7,7 @@ import hashlib
 import time
 import requests
 from .trader import BaseTrader
+from memory.core import get_memory
 
 
 class BinanceTrader(BaseTrader):
@@ -27,14 +28,18 @@ class BinanceTrader(BaseTrader):
 
     def get_balance(self) -> dict:
         if not self.api_key:
-            return {"total": 10000.0, "free": 10000.0, "asset": "USDT"}  # Paper default
+            bal = {"total": 10000.0, "free": 10000.0, "asset": "USDT"}
+            get_memory().log_portfolio("USDT", bal["total"], 1.0, "paper_default")
+            return bal
 
         params = {"timestamp": int(time.time() * 1000)}
         params["signature"] = self._sign(params)
         r = self.session.get(f"{self.base_url}/api/v3/account", params=params)
         if r.status_code == 200:
             balances = {b["asset"]: float(b["free"]) for b in r.json()["balances"]}
-            return {"total": balances.get("USDT", 0), "free": balances.get("USDT", 0), "asset": "USDT"}
+            bal = {"total": balances.get("USDT", 0), "free": balances.get("USDT", 0), "asset": "USDT"}
+            get_memory().log_portfolio("USDT", bal["total"], self.get_price("BTCUSDT"), "binance")
+            return bal
         return {"total": 0, "free": 0, "error": r.text}
 
     def get_price(self, symbol: str) -> float:
@@ -54,6 +59,7 @@ class BinanceTrader(BaseTrader):
 
         if self.paper:
             self.log(f"📊 PAPER ORDER: {side.upper()} {qty} {symbol} @ {current_price}")
+            get_memory().log_trade("binance", symbol, side, qty, current_price, qty * current_price, 0.0, "paper_filled", "binance_trader")
             trade = {
                 "symbol": symbol, "side": side, "qty": qty,
                 "price": current_price, "notional": qty * current_price,
