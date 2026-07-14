@@ -19,7 +19,7 @@ from ai_brain import get_brain
 from empire_task_engine import get_task_engine
 from marketing_swarm import MarketingSwarm
 
-class SelfRunningEmpire:
+class MasterOrchestrator:
     AMBITION = """
     ╔══════════════════════════════════════════════════════════════════╗
     ║           KINGLULU DIGITAL EMPIRE — SELF-RUNNING v4.3           ║
@@ -287,4 +287,4 @@ class SelfRunningEmpire:
         empire.save()
 
 if __name__ == "__main__":
-    SelfRunningEmpire().boot()
+    MasterOrchestrator().boot()
