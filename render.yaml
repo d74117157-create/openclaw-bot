@@ -65,3 +65,5 @@ services:
       name: empire-data
       mountPath: /data
       sizeGB: 1
+
+# Deploy trigger: 2026-07-14T14:57:43.367152
