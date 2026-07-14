@@ -18,7 +18,7 @@ import uvicorn
 # ─── CONFIG ──────────────────────────────────────────────────────
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 EMPIRE_PASSWORD = os.getenv("EMPIRE_PASSWORD", "colonel-default")
-EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/tmp/empire-state.json")
+EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/data/empire-state.json")
 PORT = int(os.getenv("PORT", 3000))
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -59,15 +59,52 @@ class EmpireState:
             "logs": []
         }
 
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.data = self._load()
+        if not self.data:
+            self.data = {
+                "version": "4.3",
+                "boot_count": 0,
+                "revenue": {"total": 0.0, "streams": {}},
+                "tasks": [],
+                "agents": {},
+                "platforms": {"discord": False, "telegram": False},
+                "logs": [],
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            self.save()
+
     def save(self):
-        import tempfile
-        os.makedirs(os.path.dirname(EMPIRE_STATE_PATH), exist_ok=True)
-        tmp_path = EMPIRE_STATE_PATH + ".tmp"
-        with open(tmp_path, "w") as f:
-            json.dump(self.data, f, indent=2, default=str)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, EMPIRE_STATE_PATH)
+        """Thread-safe atomic state save with backup rotation."""
+        with self._lock:
+            try:
+                os.makedirs(os.path.dirname(EMPIRE_STATE_PATH), exist_ok=True)
+                tmp_path = EMPIRE_STATE_PATH + ".tmp"
+                bak_path = EMPIRE_STATE_PATH + ".bak"
+
+                # Write to temp file
+                with open(tmp_path, "w") as f:
+                    json.dump(self.data, f, indent=2, default=str)
+                    f.flush()
+                    os.fsync(f.fileno())
+
+                # Rotate backup
+                if os.path.exists(EMPIRE_STATE_PATH):
+                    os.replace(EMPIRE_STATE_PATH, bak_path)
+
+                # Atomic replace
+                os.replace(tmp_path, EMPIRE_STATE_PATH)
+
+            except Exception as e:
+                # Try backup recovery
+                print(f"[EMPIRE SAVE ERROR] {e}")
+                try:
+                    if os.path.exists(bak_path):
+                        print("[EMPIRE SAVE] Recovering from backup...")
+                        os.replace(bak_path, EMPIRE_STATE_PATH)
+                except Exception as e2:
+                    print(f"[EMPIRE SAVE] Backup recovery failed: {e2}")
 
     def log(self, event: str, details: Dict = None):
         entry = {"time": datetime.utcnow().isoformat(), "event": event, "details": details or {}}
