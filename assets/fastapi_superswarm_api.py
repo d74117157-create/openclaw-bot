@@ -53,7 +53,7 @@ class EmpireState:
             "agents": {},
             "products": [],
             "revenue": {"total": 0.0, "monthly": 0.0, "streams": []},
-            "platforms": {"discord": False, "telegram": False, "slack": False, "youtube": False},
+            "platforms": {"discord": False, "telegram": False, "youtube": False},
             "trading": {"mode": "paper", "balance": 10000.0, "positions": []},
             "content_queue": [],
             "logs": []

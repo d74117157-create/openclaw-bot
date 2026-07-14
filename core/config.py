@@ -8,8 +8,9 @@ class Settings(BaseSettings):
     TELEGRAM_BOT1_TOKEN: Optional[str] = None
     TELEGRAM_BOT2_TOKEN: Optional[str] = None
     TELEGRAM_BOT3_TOKEN: Optional[str] = None
-    SLACK_BOT_TOKEN: Optional[str] = None
-    SLACK_APP_TOKEN: Optional[str] = None
+    # SLACK DISABLED — expired tokens, re-enable with new workspace
+    # SLACK_BOT_TOKEN: Optional[str] = None
+    # SLACK_APP_TOKEN: Optional[str] = None
 
     # AI Brain keys (cascading fallback)
     GROQ_API_KEY: Optional[str] = None

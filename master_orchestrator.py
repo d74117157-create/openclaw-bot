@@ -82,6 +82,7 @@ class MasterOrchestrator:
         self.trader.boot()
         self.youtube.boot()
         self.marketing.boot()
+        print("[BOOT] ⚠️ Slack disabled — expired tokens. Re-enable with new workspace when ready.")
 
         self._seed_specific_tasks()
 

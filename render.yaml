@@ -39,10 +39,6 @@ services:
         sync: false
       - key: TELEGRAM_BOT3_TOKEN
         sync: false
-      - key: SLACK_BOT_TOKEN
-        sync: false
-      - key: SLACK_APP_TOKEN
-        sync: false
       - key: BINANCE_API_KEY
         sync: false
       - key: BINANCE_API_SECRET
