@@ -29,4 +29,4 @@ ENV SCREENSHOT_DIR=/tmp/openclaw_screenshots
 ENV HEALTH_PORT=8080
 ENV PYTHONPATH=/app
 
-CMD ["python", "main.py"]
+CMD ["bash", "start.sh"]

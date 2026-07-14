@@ -4,12 +4,9 @@
 
 echo "🦅 KINGLULU EMPIRE BOOTING..."
 
-# Set Python path
+# Ensure PORT is set for Render
+export PORT="${PORT:-3000}"
 export PYTHONPATH="${PYTHONPATH}:."
 
 # Run the empire
-python3 master_orchestrator.py &
-
-# Keep alive
-echo "✅ EMPIRE RUNNING"
-tail -f /dev/null
+exec python3 main.py

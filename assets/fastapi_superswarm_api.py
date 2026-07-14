@@ -16,14 +16,23 @@ from pydantic import BaseModel, Field
 import uvicorn
 
 # ─── CONFIG ──────────────────────────────────────────────────────
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-CHANGE-IMMEDIATELY")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 EMPIRE_PASSWORD = os.getenv("EMPIRE_PASSWORD", "colonel-default")
 EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/tmp/empire-state.json")
-PORT = int(os.getenv("PORT", 10000))
+PORT = int(os.getenv("PORT", 3000))
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 app = FastAPI(title="OpenClaw Superswarm API", version="3.0.0")
+
+@app.get("/")
+def root():
+    return {"status": "KINGLULU EMPIRE ONLINE", "version": "4.3", "service": "openclaw-bot-1"}
+
+@app.head("/")
+def head_root():
+    return {"status": "ok"}
+
 security = HTTPBearer()
 
 # ─── EMPIRE STATE ────────────────────────────────────────────────
@@ -51,9 +60,14 @@ class EmpireState:
         }
 
     def save(self):
+        import tempfile
         os.makedirs(os.path.dirname(EMPIRE_STATE_PATH), exist_ok=True)
-        with open(EMPIRE_STATE_PATH, "w") as f:
+        tmp_path = EMPIRE_STATE_PATH + ".tmp"
+        with open(tmp_path, "w") as f:
             json.dump(self.data, f, indent=2, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, EMPIRE_STATE_PATH)
 
     def log(self, event: str, details: Dict = None):
         entry = {"time": datetime.utcnow().isoformat(), "event": event, "details": details or {}}
@@ -216,5 +230,8 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
 
 # ─── GOOGLE OAUTH INTEGRATION ────────────────────────────────────
-from google_oauth_server import register_oauth_routes
-register_oauth_routes(app)
+try:
+    from google_oauth_server import register_oauth_routes
+    register_oauth_routes(app)
+except ImportError:
+    pass  # Google OAuth optional — install google-auth to enable

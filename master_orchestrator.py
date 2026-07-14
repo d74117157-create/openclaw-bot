@@ -6,8 +6,8 @@ Each agent has SPECIFIC tasks. No overlap. Pure execution.
 import os, sys, asyncio, json, threading, time, random
 from datetime import datetime, timedelta
 
-PORT = int(os.getenv("PORT", 10000))
-EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/tmp/empire-state.json")
+PORT = int(os.getenv("PORT", 3000))
+EMPIRE_STATE_PATH = os.getenv("EMPIRE_STATE_PATH", "/data/empire-state.json")
 
 from assets.fastapi_superswarm_api import app, empire, uvicorn
 from core.swarm_orchestrator import SwarmOrchestrator
@@ -18,6 +18,17 @@ from revenue_tracker import RevenueTracker
 from ai_brain import get_brain
 from empire_task_engine import get_task_engine
 from marketing_swarm import MarketingSwarm
+
+import signal
+
+def _signal_handler(signum, frame):
+    print(f"\n[SIGNAL] Received {signum}, initiating graceful shutdown...")
+    if hasattr(MasterOrchestrator, '_instance') and MasterOrchestrator._instance:
+        MasterOrchestrator._instance.shutdown()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, _signal_handler)
+signal.signal(signal.SIGINT, _signal_handler)
 
 class MasterOrchestrator:
     AMBITION = """
@@ -42,7 +53,10 @@ class MasterOrchestrator:
     ╚══════════════════════════════════════════════════════════════════╝
     """
 
+    _instance = None
+
     def __init__(self):
+        MasterOrchestrator._instance = self
         self.running = False
         self.boot_time = datetime.utcnow()
         self.swarm_orchestrator = SwarmOrchestrator()
@@ -285,6 +299,7 @@ class MasterOrchestrator:
         self.running = False
         empire.log("shutdown", {"timestamp": datetime.utcnow().isoformat()})
         empire.save()
+        print("[SHUTDOWN] Empire state saved to disk. Exiting cleanly.")
 
 if __name__ == "__main__":
     MasterOrchestrator().boot()
