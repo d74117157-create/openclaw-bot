@@ -1,14 +1,35 @@
 services:
   - type: web
-    name: openclaw-empire
+    name: openclaw-superswarm-empire
     runtime: python
     plan: standard
+    region: oregon
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python master_orchestrator.py
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: ANTHROPIC_API_KEY
+        value: "3.11.0"
+      - key: PORT
+        value: "10000"
+      - key: PYTHONPATH
+        value: "."
+      - key: EMPIRE_STATE_PATH
+        value: "/data/empire-state.json"
+      - key: TRADING_MODE
+        value: "paper"
+      - key: MAX_DAILY_LOSS_PCT
+        value: "5.0"
+      - key: MAX_POSITION_PCT
+        value: "20.0"
+      - key: STOP_LOSS_PCT
+        value: "3.0"
+      - key: TAKE_PROFIT_PCT
+        value: "6.0"
+      # === SECRETS (NEVER commit real values) ===
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: EMPIRE_PASSWORD
         sync: false
       - key: DISCORD_TOKEN
         sync: false
@@ -22,22 +43,25 @@ services:
         sync: false
       - key: SLACK_APP_TOKEN
         sync: false
-      # Trading
-      - key: TRADING_MODE
-        value: paper
       - key: BINANCE_API_KEY
         sync: false
       - key: BINANCE_API_SECRET
         sync: false
+      - key: GROQ_API_KEY
         sync: false
+      - key: XAI_API_KEY
         sync: false
-      - key: FREQTRADE_URL
+      - key: ANTHROPIC_API_KEY
         sync: false
-      - key: MAX_DAILY_LOSS_PCT
-        value: "5.0"
-      - key: MAX_POSITION_PCT
-        value: "20.0"
-      - key: STOP_LOSS_PCT
-        value: "3.0"
-      - key: TAKE_PROFIT_PCT
-        value: "6.0"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    disk:
+      name: empire-data
+      mountPath: /data
+      sizeGB: 1
