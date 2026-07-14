@@ -214,3 +214,7 @@ def grok_think(prompt: str, user: Dict = Depends(get_current_user)):
 if __name__ == "__main__":
     empire.log("api_startup", {"port": PORT})
     uvicorn.run(app, host="0.0.0.0", port=PORT)
+
+# ─── GOOGLE OAUTH INTEGRATION ────────────────────────────────────
+from google_oauth_server import register_oauth_routes
+register_oauth_routes(app)
