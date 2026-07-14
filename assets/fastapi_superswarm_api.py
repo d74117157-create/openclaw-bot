@@ -14,6 +14,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import uvicorn
+import threading
 
 # ─── CONFIG ──────────────────────────────────────────────────────
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -37,8 +38,6 @@ security = HTTPBearer()
 
 # ─── EMPIRE STATE ────────────────────────────────────────────────
 class EmpireState:
-    def __init__(self):
-        self.data = self._load()
 
     def _load(self) -> Dict:
         if os.path.exists(EMPIRE_STATE_PATH):
