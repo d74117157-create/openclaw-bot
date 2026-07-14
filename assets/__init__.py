@@ -1,0 +1,1 @@
+# OpenClaw Assets Package
