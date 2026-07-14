@@ -25,9 +25,10 @@ class OpsAgent(BaseAgent):
         except:
             pass
         self.status = "idle"
+        checks_text = '\n'.join(checks)
         return f"""🛠️ **Ops Agent — Infrastructure Report**
 
-{'\n'.join(checks)}
+{checks_text}
 
 Deployments managed: Render (srv-d978fh6puehc73fkq60g)
 Status: Operational"""
