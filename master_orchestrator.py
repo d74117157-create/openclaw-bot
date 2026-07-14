@@ -178,7 +178,7 @@ class MasterOrchestrator:
         )
         self.tasks.create_task(
             title="Execute Cross-Platform Marketing Blitz",
-            description="Post compelling content on Discord, Telegram, and Slack simultaneously. Track engagement metrics. A/B test different CTAs. Report which platform converts best.",
+            description="Post compelling content on Discord and Telegram simultaneously. Track engagement metrics. A/B test different CTAs. Report which platform converts best.",
             agent_type="growth",
             priority="high",
             platform="all",
@@ -214,7 +214,7 @@ class MasterOrchestrator:
         # OPS AGENT — Keep systems running
         self.tasks.create_task(
             title="Monitor All Platform Health",
-            description="Check Discord bot connection status, Telegram bot polling health, Slack socket mode stability, YouTube API quota usage, Binance API rate limits, Render service uptime. Alert on any degradation. Auto-restart if needed.",
+            description="Check Discord bot connection status, Telegram bot polling health, YouTube API quota usage, Binance API rate limits, Render service uptime. Alert on any degradation. Auto-restart if needed.",
             agent_type="ops",
             priority="high",
             platform="infrastructure",
@@ -224,7 +224,7 @@ class MasterOrchestrator:
         # QA AGENT — Verify everything
         self.tasks.create_task(
             title="Verify All Deployments and Test Bots",
-            description="Test every bot command: Discord !elite, Telegram /ask, Slack !deploy. Verify FastAPI endpoints return 200. Check JWT auth works. Confirm database connections. Report any failures with severity.",
+            description="Test every bot command: Discord !elite, Telegram /ask. Verify FastAPI endpoints return 200. Check JWT auth works. Confirm database connections. Report any failures with severity.",
             agent_type="qa",
             priority="high",
             platform="testing",
