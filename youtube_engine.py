@@ -5,6 +5,7 @@ Uses Google API Key for read operations, OAuth for write operations.
 import os, requests
 from datetime import datetime
 from google_auth_manager import get_google_auth
+from typing import Dict
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 YOUTUBE_CHANNEL_ID = os.getenv("YOUTUBE_CHANNEL_ID", "")
