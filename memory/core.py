@@ -92,6 +92,41 @@ class SwarmMemory:
             )
         """)
 
+
+        # Task execution tracking (v3.1)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS task_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT,
+                agent_name TEXT,
+                state_from TEXT,
+                state_to TEXT,
+                timestamp TEXT,
+                reason TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS action_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT,
+                agent_name TEXT,
+                action TEXT,
+                result TEXT,
+                success INTEGER,
+                timestamp TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS execution_receipts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT UNIQUE,
+                agent TEXT,
+                receipt_json TEXT,
+                verified_by TEXT,
+                verification_passed INTEGER,
+                timestamp TEXT
+            )
+        """)
         self.conn.commit()
 
     def log_decision(self, agent: str, action: str, context: str, result: str = "", confidence: float = 0.0):

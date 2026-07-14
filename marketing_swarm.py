@@ -269,3 +269,17 @@ class MarketingSwarm:
         print("=" * 60)
 
         return results
+
+
+    def _write_marketing_assets(self, calendar, scripts, posts):
+        """Write real marketing assets to disk."""
+        os.makedirs("assets/marketing", exist_ok=True)
+        with open("assets/marketing/calendar.json", "w") as f:
+            json.dump(calendar, f, indent=2)
+        for i, script in enumerate(scripts):
+            with open(f"assets/marketing/script_{i+1}.md", "w") as f:
+                f.write(script)
+        for i, post in enumerate(posts):
+            with open(f"assets/marketing/post_{i+1}.md", "w") as f:
+                f.write(post)
+        print(f"[MARKETING] Wrote {len(scripts)} scripts, {len(posts)} posts, 1 calendar")

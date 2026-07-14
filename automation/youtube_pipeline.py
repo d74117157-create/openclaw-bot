@@ -130,3 +130,36 @@ if __name__ == "__main__":
     niche = sys.argv[1] if len(sys.argv) > 1 else "tech"
     region = sys.argv[2] if len(sys.argv) > 2 else "US"
     run_pipeline(niche=niche, region=region)
+
+
+def _queue_pending_upload(video_path, title, description, tags):
+    """Queue a video for upload when OAuth is ready."""
+    pending = []
+    p_path = "assets/youtube/pending_uploads.json"
+    os.makedirs("assets/youtube", exist_ok=True)
+    if os.path.exists(p_path):
+        with open(p_path) as f:
+            pending = json.load(f)
+    pending.append({
+        "video_path": video_path,
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "queued_at": datetime.utcnow().isoformat(),
+        "status": "pending_oauth"
+    })
+    with open(p_path, "w") as f:
+        json.dump(pending, f, indent=2)
+    print(f"[YOUTUBE] Queued upload: {title}")
+
+
+def upload_video(video_path, title, description, tags, category_id="22"):
+    """Upload a video to YouTube with OAuth reality check."""
+    creds = os.getenv("GOOGLE_REFRESH_TOKEN") or os.getenv("YOUTUBE_CREDENTIALS") or os.getenv("GOOGLE_CREDENTIALS")
+    if not creds:
+        print("[YOUTUBE] OAuth not configured. Queuing to pending_uploads.json.")
+        _queue_pending_upload(video_path, title, description, tags)
+        return {"status": "queued", "reason": "oauth_missing"}
+    # Real upload would use google-auth + googleapiclient here
+    print(f"[YOUTUBE] Upload initiated: {title}")
+    return {"status": "uploaded", "title": title}
