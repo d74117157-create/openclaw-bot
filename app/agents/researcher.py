@@ -6,6 +6,7 @@ class ResearcherAgent(BaseAgent):
     def __init__(self, brain=None):
         super().__init__("Researcher", "researcher", brain)
 
-    async def execute(self, task: str, context: Dict[str, Any] = None) -> str:
+    async def execute(self, task: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         prompt = f"As the research analyst, deep-dive into: {task}"
-        return self._think(prompt, context, max_tokens=3000)
+        result = self._think(prompt, context, max_tokens=3000)
+        return result
