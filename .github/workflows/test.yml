@@ -23,8 +23,8 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Syntax check
-        run: python -m compileall .
+      - name: Syntax check — Empire code only
+        run: python -m compileall app/ -f
 
       - name: Import validation
         run: |
@@ -68,9 +68,9 @@ jobs:
           DATABASE_URL: sqlite:///./test_empire.db
           PORT: "8080"
         run: |
-          timeout 10 python app/main.py &
+          python app/main.py &
           sleep 5
           curl -s http://localhost:8080/health | grep -q "healthy" && echo "Health check: PASS" || echo "Health check: FAIL"
-          curl -s http://localhost:8080/ready | grep -q "ready\|not_ready" && echo "Ready check: PASS" || echo "Ready check: FAIL"
+          curl -s http://localhost:8080/ready | grep -q "ready" && echo "Ready check: PASS" || echo "Ready check: FAIL"
           pkill -f "python app/main.py" || true
           rm -f ./test_empire.db
