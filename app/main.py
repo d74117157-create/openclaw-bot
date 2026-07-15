@@ -90,6 +90,11 @@ app = FastAPI(
 )
 
 
+@app.get("/")
+async def root():
+    """Root endpoint for Render health probe."""
+    return {"status": "ok", "service": "openclaw-empire", "version": "3.1.0"}
+
 @app.get("/health")
 async def health():
     """Health check for Render/Railway."""
