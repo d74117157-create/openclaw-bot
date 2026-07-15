@@ -1,7 +1,9 @@
-name: Workflow Test
+name: OpenClaw Empire — Test & Validate
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -9,69 +11,66 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Test Python imports
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
         run: |
-          python3 -c "import sys; print(f'Python: {sys.version}')"
-          python3 -c "
-          import json
-          print('✅ JSON works')
+          pip install -r requirements.txt
+
+      - name: Syntax check
+        run: python -m compileall .
+
+      - name: Import validation
+        run: |
+          python -c "from app.core.config import settings; print('Config OK')"
+          python -c "from app.database.models import init_database; print('Database OK')"
+          python -c "from app.brain.ai_client import AIBrain; print('AI Brain OK')"
+          python -c "from app.agents.orchestrator import OrchestratorAgent; print('Orchestrator OK')"
+
+      - name: Environment validation
+        run: |
+          python -c "
+          from app.core.config import settings
+          v = settings.validate()
+          print('AI Providers:', v['ai_providers'])
+          print('Platforms:', v['platforms'])
+          print('Missing:', v['missing'])
           "
 
-      - name: Verify file structure
-        run: |
-          echo "=== EMPIRE FILES ==="
-          ls -la *.py 2>/dev/null || echo "No .py files in root"
-          echo ""
-          echo "=== TEMU CLONE ==="
-          ls -la temu_clone/ 2>/dev/null || echo "No temu_clone dir"
-          echo ""
-          echo "=== AGENTS ==="
-          ls -la agents/ 2>/dev/null || echo "No agents dir"
-          echo ""
-          echo "=== CORE ==="
-          ls -la core/ 2>/dev/null || echo "No core dir"
-
-      - name: Check secrets exist
+      - name: Database test
         env:
-          GROQ: ${{ secrets.GROQ_API_KEY }}
-          OPENAI: ${{ secrets.OPENAI_API_KEY }}
-          DISCORD: ${{ secrets.DISCORD_TOKEN }}
+          DATABASE_URL: sqlite:///./test_empire.db
         run: |
-          if [ -n "$GROQ" ]; then echo "✅ GROQ_API_KEY set"; else echo "❌ GROQ_API_KEY missing"; fi
-          if [ -n "$OPENAI" ]; then echo "✅ OPENAI_API_KEY set"; else echo "❌ OPENAI_API_KEY missing"; fi
-          if [ -n "$DISCORD" ]; then echo "✅ DISCORD_TOKEN set"; else echo "❌ DISCORD_TOKEN missing"; fi
+          python -c "
+          from app.database.models import init_database, SessionLocal, Task
+          init_database()
+          db = SessionLocal()
+          t = Task(task_id='test_001', goal='Test task', agent='test')
+          db.add(t)
+          db.commit()
+          result = db.query(Task).filter(Task.task_id == 'test_001').first()
+          assert result is not None
+          assert result.goal == 'Test task'
+          print('Database read/write: PASS')
+          db.close()
+          import os
+          os.remove('./test_empire.db')
+          "
 
-      - name: Simulate task execution
+      - name: Startup test
+        env:
+          DATABASE_URL: sqlite:///./test_empire.db
+          PORT: "8080"
         run: |
-          echo "=== SIMULATING AGENT TASKS ==="
-          echo ""
-          echo "🧑‍💻 CODER AGENT:"
-          echo "  - Build Telegram Mini App #1: Subscription Bot"
-          echo "  - Build Telegram Mini App #2: Trading Signals"
-          echo "  - Build Telegram Mini App #3: Content Paywall"
-          echo ""
-          echo "📈 GROWTH AGENT:"
-          echo "  - Post YouTube Video #1: Passive Income Secrets"
-          echo "  - Post YouTube Video #2: AI Bot Empire Setup"
-          echo "  - Post YouTube Video #3: From Zero to \$20K"
-          echo "  - Execute Cross-Platform Marketing Blitz"
-          echo "  - Analyze Empire Scaling Bottlenecks"
-          echo ""
-          echo "🔬 RESEARCHER AGENT:"
-          echo "  - Research 10 Genius Passive Income Hacks"
-          echo "  - Create 30-Day Chess Improvement Plan"
-          echo ""
-          echo "🛠️ OPS AGENT:"
-          echo "  - Monitor All Platform Health"
-          echo ""
-          echo "🧪 QA AGENT:"
-          echo "  - Verify All Deployments and Test Bots"
-          echo ""
-          echo "🐝 ORCHESTRATOR:"
-          echo "  - Strategic Empire Review and Pivot Plan"
-          echo ""
-          echo "=== ALL TASKS ASSIGNED ==="
-          echo "Ready for self-running execution on Render"
+          timeout 10 python app/main.py &
+          sleep 5
+          curl -s http://localhost:8080/health | grep -q "healthy" && echo "Health check: PASS" || echo "Health check: FAIL"
+          curl -s http://localhost:8080/ready | grep -q "ready\|not_ready" && echo "Ready check: PASS" || echo "Ready check: FAIL"
+          pkill -f "python app/main.py" || true
+          rm -f ./test_empire.db
