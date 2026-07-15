@@ -91,3 +91,31 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class FailureLog(Base):
+    """Log of failed tasks and their causes."""
+    __tablename__ = "failure_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(64), nullable=False)
+    agent_name = Column(String(64), nullable=False)
+    error_type = Column(String(64), nullable=False)
+    error_message = Column(Text)
+    correction = Column(Text)
+    resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime)
+
+
+class Correction(Base):
+    """Store corrections to prevent repeating mistakes."""
+    __tablename__ = "corrections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    original_task = Column(Text, nullable=False)
+    failed_response = Column(Text)
+    corrected_response = Column(Text)
+    agent_name = Column(String(64), nullable=False)
+    reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
