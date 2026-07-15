@@ -2,31 +2,29 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    gcc curl wget gnupg \
-    libglib2.0-0 libnss3 libnspr4 libdbus-1-3 \
-    libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-    libdrm2 libxkbcommon0 libxcomposite1 \
-    libxdamage1 libxfixes3 libxrandr2 \
-    libgbm1 libasound2 libpango-1.0-0 \
-    libcairo2 libatspi2.0-0 libx11-6 \
-    libx11-xcb1 libxcb1 libxext6 \
-    fonts-liberation fonts-noto-color-emoji \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libffi-dev && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements first for layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN playwright install chromium --with-deps || true
-
+# Copy application code
 COPY . .
 
-RUN mkdir -p memory bots logs /tmp/openclaw_screenshots
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
-ENV PYTHONUNBUFFERED=1
-ENV BROWSER_HEADLESS=true
-ENV SCREENSHOT_DIR=/tmp/openclaw_screenshots
-ENV HEALTH_PORT=8080
-ENV PYTHONPATH=/app
+# Create data directory
+RUN mkdir -p /app/data
 
-CMD ["bash", "start.sh"]
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+# Start application
+CMD ["python", "app/main.py"]
