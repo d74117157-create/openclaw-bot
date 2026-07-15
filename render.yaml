@@ -1,65 +1,43 @@
 services:
   - type: web
-    name: openclaw-superswarm-empire
+    name: openclaw-empire
     runtime: python
     plan: standard
     region: oregon
     buildCommand: pip install -r requirements.txt
-    startCommand: python master_orchestrator.py
+    startCommand: python app/main.py
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
       - key: PORT
-        value: "3000"
+        value: "8080"
       - key: PYTHONPATH
         value: "."
-      - key: EMPIRE_STATE_PATH
-        value: "/data/empire-state.json"
-      - key: TRADING_MODE
-        value: "paper"
-      - key: MAX_DAILY_LOSS_PCT
-        value: "5.0"
-      - key: MAX_POSITION_PCT
-        value: "20.0"
-      - key: STOP_LOSS_PCT
-        value: "3.0"
-      - key: TAKE_PROFIT_PCT
-        value: "6.0"
-      # === SECRETS (NEVER commit real values) ===
-      - key: JWT_SECRET_KEY
+      - key: DATABASE_URL
+        value: "sqlite:///./data/empire.db"
+      - key: LOG_LEVEL
+        value: "INFO"
+      # Secrets (set in Render dashboard, never commit values)
+      - key: GROQ_API_KEY
         sync: false
-      - key: EMPIRE_PASSWORD
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: DISCORD_TOKEN
         sync: false
       - key: TELEGRAM_BOT1_TOKEN
         sync: false
-      - key: TELEGRAM_BOT2_TOKEN
+      - key: SLACK_BOT_TOKEN
         sync: false
-      - key: TELEGRAM_BOT3_TOKEN
+      - key: SLACK_APP_TOKEN
         sync: false
-      - key: BINANCE_API_KEY
-        sync: false
-      - key: BINANCE_API_SECRET
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: XAI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
+      - key: GITHUB_TOKEN
         sync: false
       - key: GOOGLE_API_KEY
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
     disk:
       name: empire-data
-      mountPath: /data
+      mountPath: /app/data
       sizeGB: 1
-
-# Deploy trigger: 2026-07-14T14:57:43.367152
