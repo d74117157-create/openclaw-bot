@@ -1,0 +1,121 @@
+name: OpenClaw Empire — AI Builder (Claude Code in CI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What should the AI build or improve?"
+        required: true
+        default: "Review all agents and suggest improvements"
+      auto_commit:
+        description: "Auto-commit changes?"
+        required: true
+        default: "false"
+
+jobs:
+  ai-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: AI Build — Analyze & Improve
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python << 'PYEOF'
+          import os, sys, json
+          sys.path.insert(0, ".")
+
+          from app.brain.ai_client import AIBrain
+          from app.core.config import settings
+
+          brain = AIBrain()
+          task = """${{ github.event.inputs.task }}"""
+
+          print("=" * 60)
+          print("OPENCLAW EMPIRE — AI BUILDER")
+          print("=" * 60)
+          print(f"Task: {task}")
+          print(f"AI Provider: {brain.primary}")
+          print()
+
+          # Read current code
+          files_to_review = [
+              "app/main.py",
+              "app/agents/orchestrator.py",
+              "app/brain/ai_client.py",
+              "app/database/models.py",
+          ]
+
+          code_context = ""
+          for f in files_to_review:
+              if os.path.exists(f):
+                  with open(f) as fh:
+                      content = fh.read()
+                  code_context += f"\n--- {f} ---\n{content[:2000]}\n"
+
+          # Ask AI for improvements
+          prompt = f"""You are the Lead Architect for OpenClaw Empire. Review this code and provide specific improvements.
+
+Task: {task}
+
+Current code:
+{code_context}
+
+Provide:
+1. Issues found (if any)
+2. Specific code improvements with file paths
+3. Architecture recommendations
+
+Format improvements as:
+FILE: path/to/file.py
+```python
+# improved code here
+```
+"""
+
+          result = brain.chat(prompt, agent_type="coder", max_tokens=4000)
+          print(result)
+
+          # Save report
+          os.makedirs("reports", exist_ok=True)
+          report_path = f"reports/ai-build-{os.environ.get('GITHUB_RUN_ID', 'local')}.md"
+          with open(report_path, "w") as f:
+              f.write(f"# AI Build Report\n\n")
+              f.write(f"**Task:** {task}\n\n")
+              f.write(f"**Provider:** {brain.primary}\n\n")
+              f.write(f"**Timestamp:** {__import__('datetime').datetime.utcnow().isoformat()}\n\n")
+              f.write(result)
+
+          print(f"\nReport saved to: {report_path}")
+          PYEOF
+
+      - name: Auto-commit changes
+        if: github.event.inputs.auto_commit == 'true'
+        run: |
+          git config user.name "OpenClaw AI Builder"
+          git config user.email "builder@openclaw.dev"
+          git add -A
+          git diff --cached --quiet || git commit -m "ai: automated improvements from AI Builder [run ${{ github.run_id }}]"
+          git push
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-build-report-${{ github.run_id }}
+          path: reports/
