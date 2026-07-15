@@ -69,7 +69,7 @@ jobs:
           PORT: "8080"
           PYTHONPATH: "."
         run: |
-          PYTHONPATH="." python app/main.py &
+          python -m app.main &
           sleep 5
           curl -s http://localhost:8080/health | grep -q "healthy" && echo "Health check: PASS" || echo "Health check: FAIL"
           curl -s http://localhost:8080/ready | grep -q "ready" && echo "Ready check: PASS" || echo "Ready check: FAIL"
