@@ -1,37 +1,34 @@
 {
-  "name": "KingLulu Empire Dev",
+  "name": "OpenClaw Empire",
   "image": "mcr.microsoft.com/devcontainers/python:3.11",
   "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/node:1": {
       "version": "20"
-    },
-    "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    }
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
-        "bradlc.vscode-tailwindcss",
+        "charliermarsh.ruff",
         "ms-vscode.vscode-json"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.linting.enabled": true,
-        "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+        "python.formatting.provider": "ruff"
       }
     }
   },
-  "postCreateCommand": "pip install -r requirements.txt && cd temu_clone && npm install",
-  "forwardPorts": [8000, 8001, 3000, 5173],
+  "postCreateCommand": "pip install -r requirements.txt && echo 'OpenClaw Empire ready. Run: python app/main.py'",
+  "forwardPorts": [8080],
   "portsAttributes": {
-    "8000": {"label": "Empire API"},
-    "8001": {"label": "KingLulu Shop"},
-    "5173": {"label": "React Dev Server"}
+    "8080": {
+      "label": "OpenClaw API",
+      "onAutoForward": "notify"
+    }
   },
   "remoteUser": "vscode"
 }
