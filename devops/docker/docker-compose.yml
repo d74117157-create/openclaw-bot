@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: devops/docker/Dockerfile
+    container_name: openclaw-app
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - app-data:/app/data
+    networks:
+      - openclaw-net
+    depends_on:
+      - redis
+      - db
+
+  redis:
+    image: redis:7-alpine
+    container_name: openclaw-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - openclaw-net
+
+  db:
+    image: postgres:15-alpine
+    container_name: openclaw-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openclaw
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: openclaw
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - openclaw-net
+
+  guardian:
+    build:
+      context: ../..
+      dockerfile: devops/docker/Dockerfile
+    container_name: openclaw-guardian
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command: python -m security.guardian --daemon
+    volumes:
+      - guardian-logs:/app/logs
+      - guardian-reports:/app/security/reports
+    networks:
+      - openclaw-net
+
+volumes:
+  app-data:
+  redis-data:
+  postgres-data:
+  guardian-logs:
+  guardian-reports:
+
+networks:
+  openclaw-net:
+    driver: bridge
