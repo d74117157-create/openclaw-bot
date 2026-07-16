@@ -1,0 +1,80 @@
+name: OpenClaw CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio flake8 bandit safety
+
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Security scan with bandit
+        run: bandit -r . -f json -o bandit-report.json || true
+
+      - name: Dependency vulnerability scan
+        run: safety check || true
+
+      - name: Secret scan
+        run: |
+          pip install truffleHog
+          truffleHog git file://. --json || true
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+  checkpoint:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create checkpoint tag
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          git tag "checkpoint-before-deploy-${TIMESTAMP}"
+          git push origin "checkpoint-before-deploy-${TIMESTAMP}"
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [test, checkpoint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -X POST \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": "do_not_clear"}'
+
+      - name: Create completion checkpoint
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          git tag "checkpoint-complete-deploy-${TIMESTAMP}"
+          git push origin "checkpoint-complete-deploy-${TIMESTAMP}"
