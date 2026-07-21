@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  app:
+    build: ..
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgresql://openclaw:openclaw@db:5432/openclaw
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - db
+    restart: unless-stopped
+    volumes:
+      - app-data:/app/data
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=openclaw
+      - POSTGRES_PASSWORD=openclaw
+      - POSTGRES_DB=openclaw
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  postgres-data:
