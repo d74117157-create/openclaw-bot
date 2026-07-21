@@ -1,0 +1,1 @@
+"""OpenClaw Empire — Verification module."""
